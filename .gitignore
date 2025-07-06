@@ -1,0 +1,41 @@
+# Arduino build files
+*.elf
+*.hex
+*.bin
+*.eep
+*.map
+*.d
+*.o
+*.a
+
+# Arduino IDE generated folders
+build/
+*.dep
+
+# PlatformIO (if used)
+.pio/
+.vscode/
+
+# Arduino sketchbook backups
+*~.tmp
+*.bak
+*.backup
+*.orig
+
+# Mac and general system files
+.DS_Store
+Thumbs.db
+
+# Secret config headers
+src/Config.h
+
+# Ignore temporary files
+*.log
+*.tmp
+*.swp
+
+# If you use SD card simulation files or SPIFFS data
+data/
+
+# Ignore the real config file with secrets
+src/Image-Renderer/Config.h
