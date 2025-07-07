@@ -38,72 +38,21 @@ void ImageUpdater::connectWiFi() {
 }
 
 void ImageUpdater::fetchAndDisplayImage() {
-    HTTPClient http;
-    http.begin(imageUrl);
-
+    Serial.println("Fetching image...");
     display.clearDisplay();
     display.setDisplayMode(INKPLATE_3BIT);
 
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK) {
-        int len = http.getSize();
-        if (len <= 0) {
-            display.println("Invalid content length.");
-            return;
-        }
-
-        // Allocate memory for JPEG buffer
-        uint8_t* buffer = (uint8_t*)malloc(len);
-        if (!buffer) {
-            display.println("Memory allocation failed!");
-            return;
-        }
-
-        // Stream into buffer
-        WiFiClient* stream = http.getStreamPtr();
-        int index = 0;
-        while (http.connected() && index < len) {
-            if (stream->available()) {
-                buffer[index++] = stream->read();
-            }
-        }
-
-        Serial.printf("Image downloaded: %d bytes\n", index);
-
-        // Draw from buffer
-        display.clearDisplay();
-        if (display.drawJpegFromBuffer(buffer, len, 0, 0, true, false)) {
-            Serial.println("Image displayed.");
-        } else {
-            Serial.println("Failed to draw image.");
-        }
-        display.display();
-
-        free(buffer);
+    
+    if (display.drawJpegFromWeb(imageUrl, 0, 0, true, false)) {
+        Serial.println("Image loaded.");
     } else {
-        display.printf("HTTP error: %d\n", httpCode);
+        Serial.println("Failed to load image.");
+        display.setCursor(10, 10);
+        display.setTextSize(2);
+        display.setTextColor(BLACK);
+        display.print("<<<< Image failed with changes >>>");
+        display.print(imageUrl);
     }
 
-    http.end();
-    // Serial.println("Fetching image...");
-    // display.clearDisplay();
-    // display.setDisplayMode(INKPLATE_3BIT);
-
-    
-    // if (display.drawJpegFromWeb(imageUrl, 0, 0, true, false)) {
-    //     Serial.println("Image loaded.");
-    // } else {
-    //     Serial.println("Failed to load image.");
-    //     display.setCursor(10, 10);
-    //     display.setTextSize(2);
-    //     display.setTextColor(BLACK);
-    //     display.print("<<<< Image failed with changes >>>");
-    //     display.print(imageUrl);
-    // }
-
-    // display.display();
-
-    //   delay(100);
-    // esp_sleep_enable_timer_wakeup(15ll * 60 * 1000 * 1000);
-    // esp_deep_sleep_start();
+    display.display();
 }
