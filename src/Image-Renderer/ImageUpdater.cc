@@ -50,7 +50,7 @@ void ImageUpdater::fetchAndDisplayImage() {
         display.setCursor(10, 10);
         display.setTextSize(2);
         display.setTextColor(BLACK);
-        display.print("<<<< Image failed with changes >>>");
+        display.print("Failed to render image on Inkplate 10");
         display.print(imageUrl);
     }
 
