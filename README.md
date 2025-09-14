@@ -21,64 +21,62 @@ A PlatformIO project for displaying images from a web URL on Inkplate e-paper di
 
 Install PlatformIO Core or use the PlatformIO IDE extension for VS Code.
 
-### 2. Configure Project
+### 2. Build and Upload
 
-Copy the configuration template and update with your settings:
+Configuration is done at build time using command-line parameters. The Makefile automatically generates a `src/Config.h` file with your settings:
 
-```bash
-cp src/Config.h.template src/Config.h
-```
-
-Edit `src/Config.h` with your WiFi credentials and image URL:
-
-```cpp
-#define WIFI_SSID     "YourWiFiNetwork"
-#define WIFI_PASSWORD "YourWiFiPassword"
-#define IMAGE_URL     "http://yourserver.com/image.jpg"
-#define REFRESH_MS    60000  // Refresh every minute
-```
-
-### 3. Build and Upload
-
-Using the Makefile (recommended):
+**Step-by-step workflow:**
 
 ```bash
-# Build the project
+# 1. Generate configuration file
+make generate-config WIFI_SSID='YourNetwork' WIFI_PASSWORD='YourPassword' SERVER_URL='http://yourserver.com/image.jpg'
+
+# 2. Build the firmware
 make build
 
-# Upload to device
+# 3. Upload to device
 make upload
-
-# Build and upload in one step
-make flash
-
-# Upload and start serial monitoring
-make upload-monitor
 ```
 
-Or using PlatformIO directly:
+**Quick deployment (all steps in one):**
 
 ```bash
-# Build
-pio run
+# Complete workflow with custom refresh interval (5 minutes)
+make deploy WIFI_SSID='YourNetwork' WIFI_PASSWORD='YourPassword' SERVER_URL='http://yourserver.com/image.jpg' REFRESH_MS=300000
+```
+
+**Development workflow:**
+
+```bash
+# Generate config once
+make generate-config WIFI_SSID='TestNet' WIFI_PASSWORD='test123' SERVER_URL='http://example.com/test.jpg'
+
+# Then iterate quickly
+make build    # Just compile
+make upload   # Just flash (no rebuild)
+make monitor  # Watch serial output
+```
+
+Or using PlatformIO directly with build flags:
+
+```bash
+# Build with configuration
+pio run --environment inkplate10 --project-option='build_flags=-DWIFI_SSID="YourNetwork" -DWIFI_PASSWORD="YourPassword" -DSERVER_URL="http://yourserver.com/image.jpg" -DREFRESH_MS=60000'
 
 # Upload
-pio run --target upload
-
-# Monitor serial output
-pio device monitor
+pio run --target upload --environment inkplate10 --project-option='build_flags=-DWIFI_SSID="YourNetwork" -DWIFI_PASSWORD="YourPassword" -DSERVER_URL="http://yourserver.com/image.jpg" -DREFRESH_MS=60000'
 ```
 
 ## Project Structure
 
 ```
-├── Makefile              # Build automation
+├── Makefile              # Build automation with config parameters
 ├── platformio.ini        # PlatformIO configuration
 ├── src/
 │   ├── main.cpp         # Main application entry point
 │   ├── ImageUpdater.h   # Image updater class header
 │   ├── ImageUpdater.cpp # Image updater implementation
-│   └── Config.h         # Configuration (create from template)
+│   └── Config.h         # Auto-generated configuration (excluded from git)
 └── README.md
 ```
 
@@ -94,15 +92,27 @@ pio device monitor
 - `make devices` - List connected devices
 - `make help` - Show all available commands
 
-## Configuration Options
+## Configuration Parameters
 
-### WiFi Settings
-- `WIFI_SSID` - Your WiFi network name
-- `WIFI_PASSWORD` - Your WiFi password
+Configuration is done at build time using command-line parameters:
 
-### Image Settings
-- `IMAGE_URL` - Direct URL to a JPEG image
-- `REFRESH_MS` - Refresh interval in milliseconds
+- `WIFI_SSID` - Your WiFi network name (required)
+- `WIFI_PASSWORD` - Your WiFi password (required)
+- `SERVER_URL` - Direct URL to a JPEG image (required)
+- `REFRESH_MS` - Refresh interval in milliseconds (optional, default: 60000)
+
+### Example Configurations
+
+```bash
+# Basic setup (1 minute refresh)
+make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/weather.jpg'
+
+# Longer refresh interval (1 hour)
+make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/weather.jpg' REFRESH_MS=3600000
+
+# Quick development build (30 seconds)
+make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/test.jpg' REFRESH_MS=30000
+```
 
 ### Supported Image Formats
 - JPEG images

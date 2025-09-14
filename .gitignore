@@ -10,7 +10,7 @@
 *.elf
 *.map
 
-# Configuration files with sensitive data
+# Generated configuration file (contains sensitive data)
 src/Config.h
 
 # IDE files
