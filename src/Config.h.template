@@ -1,0 +1,12 @@
+#pragma once
+
+// Copy this file to Config.h and update with your actual settings
+
+#define WIFI_SSID     "YOUR_SSID_HERE"
+#define WIFI_PASSWORD "SSID_PASSWORD_HERE"
+
+#define IMAGE_URL     "http://SERVER_URL_HERE/image.jpg"
+
+// Refresh interval in milliseconds
+// 60000 = 1 minute, 3600000 = 1 hour
+#define REFRESH_MS    60000  // 1 minute

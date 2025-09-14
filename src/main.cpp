@@ -3,7 +3,7 @@
 #include "Config.h"
 
 Inkplate display(INKPLATE_3BIT);
-ImageUpdater updater(display, ssid, password, imageUrl, refreshMs);
+ImageUpdater updater(display, WIFI_SSID, WIFI_PASSWORD, IMAGE_URL, REFRESH_MS);
 
 void setup() {
     delay(1000);

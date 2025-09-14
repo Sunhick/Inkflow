@@ -1,41 +1,37 @@
-# Arduino build files
-*.elf
-*.hex
-*.bin
-*.eep
-*.map
-*.d
-*.o
-*.a
-
-# Arduino IDE generated folders
-build/
-*.dep
-
-# PlatformIO (if used)
+# PlatformIO
 .pio/
-.vscode/
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
 
-# Arduino sketchbook backups
-*~.tmp
-*.bak
-*.backup
-*.orig
+# Build artifacts
+*.bin
+*.elf
+*.map
 
-# Mac and general system files
-.DS_Store
-Thumbs.db
-
-# Secret config headers
+# Configuration files with sensitive data
 src/Config.h
 
-# Ignore temporary files
-*.log
-*.tmp
+# IDE files
+.vscode/
+.idea/
 *.swp
+*.swo
+*~
 
-# If you use SD card simulation files or SPIFFS data
-data/
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Ignore the real config file with secrets
-src/Image-Renderer/Config.h
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

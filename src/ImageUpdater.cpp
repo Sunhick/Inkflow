@@ -42,7 +42,7 @@ void ImageUpdater::fetchAndDisplayImage() {
     display.clearDisplay();
     display.setDisplayMode(INKPLATE_3BIT);
 
-    
+
     if (display.drawJpegFromWeb(imageUrl, 0, 0, true, false)) {
         Serial.println("Image loaded.");
     } else {
