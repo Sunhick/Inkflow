@@ -8,6 +8,7 @@ A PlatformIO project for displaying images from a web URL on Inkplate e-paper di
 - Configurable WiFi credentials
 - Automatic refresh at specified intervals
 - Support for Inkplate 10 (3-bit grayscale mode)
+- Battery monitoring with percentage display (updates every 30 minutes)
 - Error handling and status messages
 
 ## Hardware Requirements
@@ -67,6 +68,40 @@ pio run --environment inkplate10 --project-option='build_flags=-DWIFI_SSID="Your
 pio run --target upload --environment inkplate10 --project-option='build_flags=-DWIFI_SSID="YourNetwork" -DWIFI_PASSWORD="YourPassword" -DSERVER_URL="http://yourserver.com/image.jpg" -DREFRESH_MS=60000'
 ```
 
+## Architecture
+
+The project follows SOLID principles with separate classes for different responsibilities:
+
+### Core Classes
+
+- **`ImageUpdater`** - Main orchestrator that coordinates all components
+- **`WiFiManager`** - Handles all WiFi connectivity (Single Responsibility)
+- **`DisplayManager`** - Manages all display operations (Single Responsibility)
+- **`ImageFetcher`** - Handles image downloading and display (Single Responsibility)
+
+### SOLID Principles Applied
+
+1. **Single Responsibility Principle (SRP)**
+   - Each class has one reason to change
+   - WiFiManager only handles network connectivity
+   - DisplayManager only handles screen operations
+   - ImageFetcher only handles image operations
+
+2. **Open/Closed Principle (OCP)**
+   - Classes are open for extension, closed for modification
+   - Easy to add new display types or image sources
+
+3. **Liskov Substitution Principle (LSP)**
+   - Components can be easily swapped with compatible implementations
+
+4. **Interface Segregation Principle (ISP)**
+   - Classes depend only on methods they actually use
+   - Clean, focused interfaces
+
+5. **Dependency Inversion Principle (DIP)**
+   - High-level ImageUpdater depends on abstractions
+   - Easy to mock components for testing
+
 ## Project Structure
 
 ```
@@ -74,8 +109,16 @@ pio run --target upload --environment inkplate10 --project-option='build_flags=-
 ├── platformio.ini        # PlatformIO configuration
 ├── src/
 │   ├── main.cpp         # Main application entry point
-│   ├── ImageUpdater.h   # Image updater class header
-│   ├── ImageUpdater.cpp # Image updater implementation
+│   ├── ImageUpdater.h   # Main orchestrator class
+│   ├── ImageUpdater.cpp # Main orchestrator implementation
+│   ├── WiFiManager.h    # WiFi connectivity management
+│   ├── WiFiManager.cpp  # WiFi implementation
+│   ├── DisplayManager.h # Display operations
+│   ├── DisplayManager.cpp # Display implementation
+│   ├── ImageFetcher.h   # Image downloading
+│   ├── ImageFetcher.cpp # Image fetching implementation
+│   ├── BatteryManager.h # Battery monitoring
+│   ├── BatteryManager.cpp # Battery monitoring implementation
 │   └── Config.h         # Auto-generated configuration (excluded from git)
 └── README.md
 ```
