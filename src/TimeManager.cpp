@@ -117,8 +117,8 @@ void TimeManager::drawTimeDisplay() {
     int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Calculate 5% bottom bar dimensions
-    int bottomBarHeight = displayHeight * 0.05; // 5% of display height
+    // Calculate 8% bottom bar dimensions (increased from 5% for better visibility)
+    int bottomBarHeight = displayHeight * 0.08; // 8% of display height
     int bottomBarY = displayHeight - bottomBarHeight;
 
     Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
@@ -127,8 +127,19 @@ void TimeManager::drawTimeDisplay() {
     // Clear the time area (left half of bottom bar) with WHITE background
     clearTimeArea();
 
-    // Draw separator line above bottom bar (only draw once from time manager)
+    // Draw thick separator line above bottom bar (only draw once from time manager)
     display.drawLine(0, bottomBarY - 1, displayWidth, bottomBarY - 1, BLACK);
+    display.drawLine(0, bottomBarY - 2, displayWidth, bottomBarY - 2, BLACK);
+    display.drawLine(0, bottomBarY - 3, displayWidth, bottomBarY - 3, BLACK);
+
+    // Draw vertical separators between the three sections
+    int timeWeatherSeparator = displayWidth / 2; // 50% mark (time | weather)
+    int weatherBatterySeparator = displayWidth * 7 / 10; // 70% mark (weather | battery)
+
+    // Separator between time and weather sections
+    display.drawLine(timeWeatherSeparator, bottomBarY, timeWeatherSeparator, bottomBarY + bottomBarHeight, BLACK);
+    // Separator between weather and battery sections
+    display.drawLine(weatherBatterySeparator, bottomBarY, weatherBatterySeparator, bottomBarY + bottomBarHeight, BLACK);
 
     // Get formatted strings
     String dateStr = getFormattedDate();
@@ -137,24 +148,23 @@ void TimeManager::drawTimeDisplay() {
 
     Serial.printf("Date: %s, Time: %s, Day: %s\n", dateStr.c_str(), timeStr.c_str(), dayStr.c_str());
 
-    // Position time display in left half of bottom bar, centered vertically
-    int textSize = 2;
-    int textHeight = textSize * 8; // Approximate text height
-    int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
-    int timeX = 10; // Left margin
+    // Position time display in left half of bottom bar - LEFT ALIGNED
+    int textSize = 2; // Match battery font size
+    int lineHeight = textSize * 8; // Height of one line of text
+    int timeX = 5; // Left margin for left alignment
+
+    // Single line format: "September 14, 2026 11:24PM (SUN)"
+    int textY = bottomBarY + (bottomBarHeight - lineHeight) / 2; // Center vertically
 
     Serial.printf("Time position: (%d,%d)\n", timeX, textY);
 
-    // Draw combined date and time string in BLACK on WHITE background
-    display.setCursor(timeX, textY);
     display.setTextSize(textSize);
     display.setTextColor(BLACK, WHITE); // Explicitly set BLACK text on WHITE background
 
-    // Format: "Mon, Sep 14 2:30 PM"
-    String combinedStr = dayStr.substring(0, 3) + ", " +
-                        dateStr.substring(0, dateStr.indexOf(',')) + " " +
-                        timeStr;
-    display.print(combinedStr);
+    // Full format: "September 14, 2026 11:24PM (SUN)"
+    display.setCursor(timeX, textY);
+    String fullDateTime = getFullDateTime();
+    display.print(fullDateTime);
 
     Serial.println("Time drawn to buffer");
 }
@@ -171,12 +181,12 @@ void TimeManager::getTimeArea(int &x, int &y, int &width, int &height) {
     int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Time area is left half of 5% bottom bar
-    int bottomBarHeight = displayHeight * 0.05;
+    // Time area is left 50% of 8% bottom bar (0% to 50%)
+    int bottomBarHeight = displayHeight * 0.08;
 
     x = 0;
     y = displayHeight - bottomBarHeight;
-    width = displayWidth / 2;
+    width = displayWidth / 2; // 50% width
     height = bottomBarHeight;
 }
 
@@ -202,6 +212,40 @@ String TimeManager::getFormattedTime() {
     return String(buffer);
 }
 
+String TimeManager::getCompactDate() {
+    if (!timeInitialized) return "No Date";
+
+    time_t now = time(nullptr);
+    struct tm* timeinfo = localtime(&now);
+
+    char buffer[16];
+    strftime(buffer, sizeof(buffer), "%b %d", timeinfo); // "Dec 15" format
+    return String(buffer);
+}
+
+String TimeManager::getFullDateTime() {
+    if (!timeInitialized) return "Time Sync Failed";
+
+    time_t now = time(nullptr);
+    struct tm* timeinfo = localtime(&now);
+
+    char buffer[64];
+    // Format: "September 14, 2026 11:24PM (SUN)"
+    strftime(buffer, sizeof(buffer), "%B %d, %Y %I:%M%p (%a)", timeinfo);
+
+    // Convert to uppercase for day abbreviation
+    String result = String(buffer);
+    result.replace("(sun)", "(SUN)");
+    result.replace("(mon)", "(MON)");
+    result.replace("(tue)", "(TUE)");
+    result.replace("(wed)", "(WED)");
+    result.replace("(thu)", "(THU)");
+    result.replace("(fri)", "(FRI)");
+    result.replace("(sat)", "(SAT)");
+
+    return result;
+}
+
 void TimeManager::drawTimeToBuffer() {
     if (!timeInitialized) {
         Serial.println("Time not initialized, attempting NTP sync...");
@@ -213,16 +257,16 @@ void TimeManager::drawTimeToBuffer() {
             int displayWidth = display.width();
             int displayHeight = display.height();
 
-            // Calculate 5% bottom bar position
-            int bottomBarHeight = displayHeight * 0.05;
+            // Calculate 8% bottom bar position
+            int bottomBarHeight = displayHeight * 0.08;
             int bottomBarY = displayHeight - bottomBarHeight;
-            int textHeight = 2 * 8; // text size 2
+            int textHeight = 1 * 8; // text size 1
             int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
-            int timeX = 10;
+            int timeX = 5;
 
             clearTimeArea();
             display.setCursor(timeX, textY);
-            display.setTextSize(2);
+            display.setTextSize(1);
             display.setTextColor(BLACK, WHITE); // Explicitly set BLACK text on WHITE background
             display.print("Time Sync Failed");
             lastTimeUpdate = millis();

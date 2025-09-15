@@ -1,14 +1,18 @@
-# Inkplate Image Renderer
+# Inkplate Image Renderer with Weather
 
-A PlatformIO project for displaying images from a web URL on Inkplate e-paper displays. The project fetches images over WiFi and displays them on the Inkplate screen with configurable refresh intervals.
+A PlatformIO project for displaying images from a web URL on Inkplate e-paper displays with comprehensive status information. The project fetches images over WiFi and displays them with weather, battery, and time information in a clean status bar layout.
 
 ## Features
 
 - Fetches JPEG images from web URLs
+- **Weather information** with temperature and conditions from free Open-Meteo API (no API key required!)
 - Configurable WiFi credentials
 - Automatic refresh at specified intervals
 - Support for Inkplate 10 (3-bit grayscale mode)
-- Battery monitoring with percentage display (updates every 30 minutes)
+- Battery monitoring with percentage display and charging icon
+- Time display with automatic updates
+- **Three-section bottom status bar with white background and black text** (Time | Weather | Battery)
+- Status updates every 30 minutes (weather, battery, time)
 - Error handling and status messages
 
 ## Hardware Requirements
@@ -29,7 +33,7 @@ Configuration is done at build time using command-line parameters. The Makefile 
 **Step-by-step workflow:**
 
 ```bash
-# 1. Generate configuration file
+# 1. Generate configuration file (weather works automatically - no API key needed!)
 make generate-config WIFI_SSID='YourNetwork' WIFI_PASSWORD='YourPassword' SERVER_URL='http://yourserver.com/image.jpg'
 
 # 2. Build the firmware
@@ -42,7 +46,7 @@ make upload
 **Quick deployment (all steps in one):**
 
 ```bash
-# Complete workflow with custom refresh interval (5 minutes)
+# Complete workflow with weather and custom refresh interval (5 minutes)
 make deploy WIFI_SSID='YourNetwork' WIFI_PASSWORD='YourPassword' SERVER_URL='http://yourserver.com/image.jpg' REFRESH_MS=300000
 ```
 
@@ -78,6 +82,9 @@ The project follows SOLID principles with separate classes for different respons
 - **`WiFiManager`** - Handles all WiFi connectivity (Single Responsibility)
 - **`DisplayManager`** - Manages all display operations (Single Responsibility)
 - **`ImageFetcher`** - Handles image downloading and display (Single Responsibility)
+- **`WeatherManager`** - Manages weather API calls and data parsing (Single Responsibility)
+- **`BatteryManager`** - Handles battery monitoring and display (Single Responsibility)
+- **`TimeManager`** - Manages time display and formatting (Single Responsibility)
 
 ### SOLID Principles Applied
 
@@ -117,8 +124,12 @@ The project follows SOLID principles with separate classes for different respons
 │   ├── DisplayManager.cpp # Display implementation
 │   ├── ImageFetcher.h   # Image downloading
 │   ├── ImageFetcher.cpp # Image fetching implementation
+│   ├── WeatherManager.h # Weather API management
+│   ├── WeatherManager.cpp # Weather implementation
 │   ├── BatteryManager.h # Battery monitoring
 │   ├── BatteryManager.cpp # Battery monitoring implementation
+│   ├── TimeManager.h    # Time display management
+│   ├── TimeManager.cpp  # Time implementation
 │   └── Config.h         # Auto-generated configuration (excluded from git)
 └── README.md
 ```
@@ -139,23 +150,54 @@ The project follows SOLID principles with separate classes for different respons
 
 Configuration is done at build time using command-line parameters:
 
-- `WIFI_SSID` - Your WiFi network name (required)
-- `WIFI_PASSWORD` - Your WiFi password (required)
-- `SERVER_URL` - Direct URL to a JPEG image (required)
-- `REFRESH_MS` - Refresh interval in milliseconds (optional, default: 60000)
+### Required Parameters
+- `WIFI_SSID` - Your WiFi network name
+- `WIFI_PASSWORD` - Your WiFi password
+- `SERVER_URL` - Direct URL to a JPEG image
+
+### Optional Parameters
+- `REFRESH_MS` - Image refresh interval in milliseconds (default: 3600000 = 1 hour)
+- `WEATHER_LATITUDE` - Your latitude (default: "37.7749" = San Francisco)
+- `WEATHER_LONGITUDE` - Your longitude (default: "-122.4194" = San Francisco)
+- `WEATHER_UNITS` - Temperature units: "fahrenheit" or "celsius" (default: "fahrenheit")
 
 ### Example Configurations
 
 ```bash
-# Basic setup (1 minute refresh)
+# Basic setup with weather (1 hour refresh) - San Francisco by default
 make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/weather.jpg'
 
-# Longer refresh interval (1 hour)
-make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/weather.jpg' REFRESH_MS=3600000
+# Custom location (London) and units (celsius)
+make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/image.jpg' WEATHER_LATITUDE='51.5074' WEATHER_LONGITUDE='-0.1278' WEATHER_UNITS='celsius'
 
-# Quick development build (30 seconds)
+# Quick development build (30 seconds refresh)
 make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/test.jpg' REFRESH_MS=30000
 ```
+
+## Display Layout
+
+The display features a clean layout with a comprehensive status bar:
+
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│            Main Image Area              │
+│              (95% height)               │
+│                                         │
+├─────────────────────────────────────────┤
+│ 2:30 PM │ 72°F Sunny │      85% ⚡     │ ← Status Bar (5%)
+└─────────────────────────────────────────┘
+```
+
+### Status Bar Sections
+- **Left (25%)**: Current time (e.g., "2:30 PM")
+- **Center (25%)**: Weather info (e.g., "72°F Sunny")
+- **Right (50%)**: Battery percentage with charging icon (e.g., "85% ⚡")
+
+### Update Intervals
+- **Images**: Every 1 hour (configurable via REFRESH_MS)
+- **Status Info**: Every 30 minutes (weather, battery, time)
+- **WiFi**: Auto-reconnection on connection loss
 
 ### Supported Image Formats
 - JPEG images

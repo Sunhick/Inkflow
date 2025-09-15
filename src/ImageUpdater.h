@@ -6,6 +6,7 @@
 #include "ImageFetcher.h"
 #include "BatteryManager.h"
 #include "TimeManager.h"
+#include "WeatherManager.h"
 
 class ImageUpdater {
 public:
@@ -21,6 +22,7 @@ private:
     ImageFetcher imageFetcher;
     BatteryManager batteryManager;
     TimeManager timeManager;
+    WeatherManager weatherManager;
 
     unsigned long refreshInterval;
     unsigned long lastUpdate;
@@ -31,6 +33,7 @@ private:
     void processImageUpdate();
     void handleBatteryUpdate();
     void handleTimeUpdate();
+    void handleWeatherUpdate();
 };
 
 #endif

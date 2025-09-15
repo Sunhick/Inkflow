@@ -33,6 +33,8 @@ private:
     void clearTimeArea();
     String getFormattedDate();
     String getFormattedTime();
+    String getCompactDate();
+    String getFullDateTime();
     String getDayOfWeek();
 };
 

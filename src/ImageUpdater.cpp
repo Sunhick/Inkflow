@@ -7,6 +7,7 @@ ImageUpdater::ImageUpdater(Inkplate &display, const char* ssid, const char* pass
       imageFetcher(display, imageUrl),
       batteryManager(display),
       timeManager(display),
+      weatherManager(display),
       refreshInterval(refreshMs),
       lastUpdate(0) {}
 
@@ -17,6 +18,7 @@ void ImageUpdater::begin() {
     displayManager.initialize();
     batteryManager.begin();
     timeManager.begin();
+    weatherManager.begin();
 
     // Test battery display immediately
     Serial.println("Testing battery display...");
@@ -31,6 +33,7 @@ void ImageUpdater::loop() {
     handleScheduledUpdate();
     handleBatteryUpdate();
     handleTimeUpdate();
+    handleWeatherUpdate();
 }
 
 void ImageUpdater::performInitialSetup() {
@@ -40,12 +43,13 @@ void ImageUpdater::performInitialSetup() {
         Serial.println("Initial setup complete");
         displayManager.showStatus("Connected", "WiFi", wifiManager.getIPAddress().c_str());
 
-        // Now that WiFi is connected, sync time
-        Serial.println("WiFi connected, syncing time...");
+        // Now that WiFi is connected, sync time and weather
+        Serial.println("WiFi connected, syncing time and weather...");
         Serial.printf("WiFi IP: %s\n", wifiManager.getIPAddress().c_str());
         Serial.printf("WiFi Signal: %d dBm\n", wifiManager.getSignalStrength());
 
         timeManager.syncTimeWithNTP();
+        weatherManager.fetchWeatherData();
 
         if (timeManager.isTimeInitialized()) {
             Serial.println("Time sync successful!");
@@ -53,12 +57,19 @@ void ImageUpdater::performInitialSetup() {
             Serial.println("Time sync failed - will retry later");
         }
 
+        if (weatherManager.isWeatherDataValid()) {
+            Serial.println("Weather fetch successful!");
+        } else {
+            Serial.println("Weather fetch failed - will retry later");
+        }
+
         if (imageFetcher.fetchAndDisplay()) {
             Serial.println("Initial image loaded successfully");
-            // Show battery and time status after image
-            Serial.println("Adding battery and time display to image...");
+            // Show battery, time, and weather status after image
+            Serial.println("Adding battery, time, and weather display to image...");
             batteryManager.drawBatteryToBuffer();
             timeManager.drawTimeToBuffer();
+            weatherManager.drawWeatherToBuffer();
             displayManager.update(); // Single display update
         } else {
             displayManager.showError("Image Error", "Failed to load initial image");
@@ -95,9 +106,10 @@ bool ImageUpdater::ensureConnectivity() {
                                    wifiManager.getStatusString().c_str());
             return false;
         } else {
-            // WiFi reconnected, resync time if needed
-            Serial.println("WiFi reconnected, resyncing time...");
+            // WiFi reconnected, resync time and weather if needed
+            Serial.println("WiFi reconnected, resyncing time and weather...");
             timeManager.syncTimeWithNTP();
+            weatherManager.fetchWeatherData();
         }
     }
     return true;
@@ -112,6 +124,7 @@ void ImageUpdater::processImageUpdate() {
         Serial.println("Adding battery and time display to updated image...");
         batteryManager.drawBatteryToBuffer();
         timeManager.drawTimeToBuffer();
+        weatherManager.drawWeatherToBuffer(); // Weather now displayed in 20% section
         displayManager.update(); // Single display update
     } else {
         Serial.printf("Image update failed (attempt %d)\n", imageFetcher.getConsecutiveFailures());
@@ -134,6 +147,7 @@ void ImageUpdater::handleBatteryUpdate() {
         Serial.println("Updating battery display...");
         batteryManager.drawBatteryToBuffer();
         timeManager.drawTimeToBuffer(); // Also refresh time
+        weatherManager.drawWeatherToBuffer(); // Weather now displayed in 20% section
         displayManager.update();
     }
 }
@@ -144,6 +158,18 @@ void ImageUpdater::handleTimeUpdate() {
         Serial.println("Updating time display...");
         timeManager.drawTimeToBuffer();
         batteryManager.drawBatteryToBuffer(); // Also refresh battery
+        weatherManager.drawWeatherToBuffer(); // Weather now displayed in 20% section
+        displayManager.update();
+    }
+}
+
+void ImageUpdater::handleWeatherUpdate() {
+    // Check if weather needs update (every 30 minutes)
+    if (weatherManager.shouldUpdate()) {
+        Serial.println("Updating weather display...");
+        weatherManager.drawWeatherToBuffer();
+        batteryManager.drawBatteryToBuffer(); // Also refresh battery
+        timeManager.drawTimeToBuffer(); // Also refresh time
         displayManager.update();
     }
 }

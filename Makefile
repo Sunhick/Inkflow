@@ -7,7 +7,10 @@
 WIFI_SSID ?= "YOUR_SSID_HERE"
 WIFI_PASSWORD ?= "YOUR_PASSWORD_HERE"
 SERVER_URL ?= "http://SERVER_URL_HERE/image.jpg"
-REFRESH_MS ?= 60000
+REFRESH_MS ?= 3600000
+WEATHER_LATITUDE ?= "37.7749"
+WEATHER_LONGITUDE ?= "-122.4194"
+WEATHER_UNITS ?= "fahrenheit"
 
 # Build flags with configuration
 BUILD_FLAGS = -DWIFI_SSID='"$(WIFI_SSID)"' -DWIFI_PASSWORD='"$(WIFI_PASSWORD)"' -DSERVER_URL='"$(SERVER_URL)"' -DREFRESH_MS=$(REFRESH_MS)
@@ -28,7 +31,13 @@ generate-config:
 	@echo '#define WIFI_SSID     "$(WIFI_SSID)"' >> src/Config.h
 	@echo '#define WIFI_PASSWORD "$(WIFI_PASSWORD)"' >> src/Config.h
 	@echo '#define SERVER_URL    "$(SERVER_URL)"' >> src/Config.h
-	@echo '#define REFRESH_MS    $(REFRESH_MS)' >> src/Config.h
+	@echo '#define REFRESH_MS    $(REFRESH_MS)  // 1 hour = 3,600,000 milliseconds' >> src/Config.h
+	@echo '' >> src/Config.h
+	@echo '// Weather Configuration (using free Open-Meteo API - no API key required)' >> src/Config.h
+	@echo '// Default coordinates for San Francisco - you can change these' >> src/Config.h
+	@echo '#define WEATHER_LATITUDE   "$(WEATHER_LATITUDE)"    // Your latitude' >> src/Config.h
+	@echo '#define WEATHER_LONGITUDE  "$(WEATHER_LONGITUDE)"  // Your longitude' >> src/Config.h
+	@echo '#define WEATHER_UNITS      "$(WEATHER_UNITS)" // fahrenheit or celsius' >> src/Config.h
 
 # Upload to device (requires firmware to be built)
 upload:
@@ -92,10 +101,13 @@ help:
 	@echo "  help          - Show this help"
 	@echo ""
 	@echo "Configuration variables (can be set on command line):"
-	@echo "  WIFI_SSID     - WiFi network name (default: YOUR_SSID_HERE)"
-	@echo "  WIFI_PASSWORD - WiFi password (default: YOUR_PASSWORD_HERE)"
-	@echo "  SERVER_URL    - Image URL (default: http://SERVER_URL_HERE/image.jpg)"
-	@echo "  REFRESH_MS    - Refresh interval in ms (default: 60000)"
+	@echo "  WIFI_SSID       - WiFi network name (default: YOUR_SSID_HERE)"
+	@echo "  WIFI_PASSWORD   - WiFi password (default: YOUR_PASSWORD_HERE)"
+	@echo "  SERVER_URL      - Image URL (default: http://SERVER_URL_HERE/image.jpg)"
+	@echo "  REFRESH_MS      - Refresh interval in ms (default: 3600000 = 1 hour)"
+	@echo "  WEATHER_LATITUDE  - Your latitude (default: 37.7749 = San Francisco)"
+	@echo "  WEATHER_LONGITUDE - Your longitude (default: -122.4194 = San Francisco)"
+	@echo "  WEATHER_UNITS     - Temperature units (default: fahrenheit)"
 	@echo ""
 	@echo "Typical workflow:"
 	@echo "  1. make generate-config WIFI_SSID='MyNet' WIFI_PASSWORD='MyPass' SERVER_URL='http://example.com/image.jpg'"
