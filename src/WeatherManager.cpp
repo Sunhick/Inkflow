@@ -150,32 +150,38 @@ void WeatherManager::drawWeatherDisplay() {
 
         display.setCursor(weatherX, textY);
         display.setTextSize(textSize);
-        display.setTextColor(BLACK, WHITE);
+        display.setTextColor(WHITE, BLACK);
         display.print("Weather N/A");
         return;
     }
 
     // Position weather display in middle 20% section of bottom bar
-    int textSize = 2; // Match battery font size
+    int textSize = 3; // Match battery font size
     int textHeight = textSize * 8;
     int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
     int weatherX = displayWidth / 2 + 5; // Start of weather section (50%) + small margin
 
     Serial.printf("Weather position: (%d,%d)\n", weatherX, textY);
 
-    // Draw weather info: "55 F Clear" format (no degree symbol, one word description)
+    // Draw weather info: "67 F (partly cloudy)" format with two-word description in parentheses
     display.setCursor(weatherX, textY);
     display.setTextSize(textSize);
-    display.setTextColor(BLACK, WHITE);
+    display.setTextColor(WHITE, BLACK);
 
-    // Get first word of description only
-    String firstWord = currentWeather.description;
-    int spaceIndex = firstWord.indexOf(' ');
-    if (spaceIndex > 0) {
-        firstWord = firstWord.substring(0, spaceIndex);
+    // Get first two words of description for better readability
+    String twoWordDesc = currentWeather.description;
+    int firstSpace = twoWordDesc.indexOf(' ');
+    if (firstSpace > 0) {
+        int secondSpace = twoWordDesc.indexOf(' ', firstSpace + 1);
+        if (secondSpace > 0) {
+            twoWordDesc = twoWordDesc.substring(0, secondSpace);
+        }
     }
 
-    String weatherStr = String((int)currentWeather.temperature) + " F " + firstWord;
+    // Convert to lowercase for better appearance in parentheses
+    twoWordDesc.toLowerCase();
+
+    String weatherStr = String((int)currentWeather.temperature) + " F (" + twoWordDesc + ")";
     display.print(weatherStr);
 
     Serial.println("Weather drawn to buffer");
@@ -185,8 +191,8 @@ void WeatherManager::clearWeatherArea() {
     int areaX, areaY, areaWidth, areaHeight;
     getWeatherArea(areaX, areaY, areaWidth, areaHeight);
 
-    // Clear with white background
-    display.fillRect(areaX, areaY, areaWidth, areaHeight, WHITE);
+    // Clear with black background
+    display.fillRect(areaX, areaY, areaWidth, areaHeight, BLACK);
 }
 
 void WeatherManager::getWeatherArea(int &x, int &y, int &width, int &height) {
@@ -222,7 +228,7 @@ void WeatherManager::drawWeatherToBuffer() {
             clearWeatherArea();
             display.setCursor(weatherX, textY);
             display.setTextSize(2);
-            display.setTextColor(BLACK, WHITE);
+            display.setTextColor(WHITE, BLACK);
             display.print("Weather N/A");
             lastWeatherUpdate = millis();
             return;

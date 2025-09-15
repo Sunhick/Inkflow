@@ -128,18 +128,18 @@ void TimeManager::drawTimeDisplay() {
     clearTimeArea();
 
     // Draw thick separator line above bottom bar (only draw once from time manager)
-    display.drawLine(0, bottomBarY - 1, displayWidth, bottomBarY - 1, BLACK);
-    display.drawLine(0, bottomBarY - 2, displayWidth, bottomBarY - 2, BLACK);
-    display.drawLine(0, bottomBarY - 3, displayWidth, bottomBarY - 3, BLACK);
+    display.drawLine(0, bottomBarY - 1, displayWidth, bottomBarY - 1, WHITE);
+    display.drawLine(0, bottomBarY - 2, displayWidth, bottomBarY - 2, WHITE);
+    display.drawLine(0, bottomBarY - 3, displayWidth, bottomBarY - 3, WHITE);
 
     // Draw vertical separators between the three sections
     int timeWeatherSeparator = displayWidth / 2; // 50% mark (time | weather)
     int weatherBatterySeparator = displayWidth * 7 / 10; // 70% mark (weather | battery)
 
     // Separator between time and weather sections
-    display.drawLine(timeWeatherSeparator, bottomBarY, timeWeatherSeparator, bottomBarY + bottomBarHeight, BLACK);
+    display.drawLine(timeWeatherSeparator, bottomBarY, timeWeatherSeparator, bottomBarY + bottomBarHeight, WHITE);
     // Separator between weather and battery sections
-    display.drawLine(weatherBatterySeparator, bottomBarY, weatherBatterySeparator, bottomBarY + bottomBarHeight, BLACK);
+    display.drawLine(weatherBatterySeparator, bottomBarY, weatherBatterySeparator, bottomBarY + bottomBarHeight, WHITE);
 
     // Get formatted strings
     String dateStr = getFormattedDate();
@@ -149,7 +149,7 @@ void TimeManager::drawTimeDisplay() {
     Serial.printf("Date: %s, Time: %s, Day: %s\n", dateStr.c_str(), timeStr.c_str(), dayStr.c_str());
 
     // Position time display in left half of bottom bar - LEFT ALIGNED
-    int textSize = 2; // Match battery font size
+    int textSize = 3; // Match battery font size
     int lineHeight = textSize * 8; // Height of one line of text
     int timeX = 5; // Left margin for left alignment
 
@@ -159,7 +159,7 @@ void TimeManager::drawTimeDisplay() {
     Serial.printf("Time position: (%d,%d)\n", timeX, textY);
 
     display.setTextSize(textSize);
-    display.setTextColor(BLACK, WHITE); // Explicitly set BLACK text on WHITE background
+    display.setTextColor(WHITE, BLACK); // Explicitly set WHITE text on BLACK background
 
     // Full format: "September 14, 2026 11:24PM (SUN)"
     display.setCursor(timeX, textY);
@@ -173,8 +173,8 @@ void TimeManager::clearTimeArea() {
     int areaX, areaY, areaWidth, areaHeight;
     getTimeArea(areaX, areaY, areaWidth, areaHeight);
 
-    // Clear with white background
-    display.fillRect(areaX, areaY, areaWidth, areaHeight, WHITE);
+    // Clear with black background
+    display.fillRect(areaX, areaY, areaWidth, areaHeight, BLACK);
 }
 
 void TimeManager::getTimeArea(int &x, int &y, int &width, int &height) {
@@ -267,7 +267,7 @@ void TimeManager::drawTimeToBuffer() {
             clearTimeArea();
             display.setCursor(timeX, textY);
             display.setTextSize(1);
-            display.setTextColor(BLACK, WHITE); // Explicitly set BLACK text on WHITE background
+            display.setTextColor(WHITE, BLACK); // Explicitly set WHITE text on BLACK background
             display.print("Time Sync Failed");
             lastTimeUpdate = millis();
             return;

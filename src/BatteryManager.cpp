@@ -67,9 +67,9 @@ void BatteryManager::drawBatteryIndicator() {
     Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
     Serial.printf("Bottom bar: height=%d, y=%d\n", bottomBarHeight, bottomBarY);
 
-    // Clear the entire battery area (rightmost 30% of bottom bar) with WHITE background
+    // Clear the entire battery area (rightmost 30% of bottom bar) with BLACK background
     int batteryAreaX = displayWidth * 7 / 10; // Start at 70% from left
-    display.fillRect(batteryAreaX, bottomBarY, displayWidth * 3 / 10, bottomBarHeight, WHITE);
+    display.fillRect(batteryAreaX, bottomBarY, displayWidth * 3 / 10, bottomBarHeight, BLACK);
 
     // Position battery display in rightmost 30% of bottom bar - RIGHT ALIGNED
     int textSize = 2; // Larger text for better visibility
@@ -90,23 +90,23 @@ void BatteryManager::drawBatteryIndicator() {
 
     Serial.printf("Battery position (right-aligned): text=(%d,%d), icon=(%d,%d)\n", textX, textY, iconX, iconY);
 
-    // Draw percentage text in BLACK on WHITE background - RIGHT ALIGNED
+    // Draw percentage text in WHITE on BLACK background - RIGHT ALIGNED
     display.setCursor(textX, textY);
     display.setTextSize(textSize);
-    display.setTextColor(BLACK, WHITE); // Explicitly set BLACK text on WHITE background
+    display.setTextColor(WHITE, BLACK); // Explicitly set WHITE text on BLACK background
     display.printf("%d%%", percentage);
 
-    // Draw battery icon next to percentage in BLACK
+    // Draw battery icon next to percentage in WHITE
 
-    // Battery outline in BLACK
-    display.drawRect(iconX, iconY, iconWidth, iconHeight, BLACK);
-    // Battery tip in BLACK
-    display.fillRect(iconX + iconWidth, iconY + 2, 2, iconHeight - 4, BLACK);
+    // Battery outline in WHITE
+    display.drawRect(iconX, iconY, iconWidth, iconHeight, WHITE);
+    // Battery tip in WHITE
+    display.fillRect(iconX + iconWidth, iconY + 2, 2, iconHeight - 4, WHITE);
 
-    // Fill battery based on percentage in BLACK
+    // Fill battery based on percentage in WHITE
     int fillWidth = ((iconWidth - 2) * percentage) / 100;
     if (fillWidth > 0) {
-        display.fillRect(iconX + 1, iconY + 1, fillWidth, iconHeight - 2, BLACK);
+        display.fillRect(iconX + 1, iconY + 1, fillWidth, iconHeight - 2, WHITE);
     }
 
     Serial.println("Battery drawn to buffer");
