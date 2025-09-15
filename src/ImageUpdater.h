@@ -22,6 +22,10 @@ private:
 
     void connectWiFi();
     void fetchAndDisplayImage();
+    void showConnectionStatus();
+    void showSuccessStatus(int contentLength);
+    void showErrorStatus(int httpCode);
+    void showImageError();
 };
 
 #endif

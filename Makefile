@@ -15,7 +15,7 @@ BUILD_FLAGS = -DWIFI_SSID='"$(WIFI_SSID)"' -DWIFI_PASSWORD='"$(WIFI_PASSWORD)"' 
 # Build the project (requires Config.h to exist)
 build:
 	@if [ ! -f src/Config.h ]; then echo "Error: src/Config.h not found. Run 'make generate-config' first."; exit 1; fi
-	pio run --environment inkplate10
+	pio run --environment esp32
 
 # Generate Config.h from parameters
 generate-config:
@@ -32,8 +32,8 @@ generate-config:
 
 # Upload to device (requires firmware to be built)
 upload:
-	@if [ ! -f .pio/build/inkplate10/firmware.bin ]; then echo "Error: Firmware not built. Run 'make build' first."; exit 1; fi
-	pio run --target upload --environment inkplate10
+	@if [ ! -f .pio/build/esp32/firmware.bin ]; then echo "Error: Firmware not built. Run 'make build' first."; exit 1; fi
+	pio run --target upload --environment esp32
 
 # Clean build files
 clean:
