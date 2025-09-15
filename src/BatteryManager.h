@@ -10,6 +10,7 @@ public:
     void begin();
     void updateBatteryDisplay();
     void forceUpdate();
+    void drawBatteryToBuffer(); // Draw without updating display
     bool shouldUpdate();
     float getBatteryVoltage();
     int getBatteryPercentage();

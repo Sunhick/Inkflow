@@ -6,6 +6,7 @@ ImageUpdater::ImageUpdater(Inkplate &display, const char* ssid, const char* pass
       displayManager(display),
       imageFetcher(display, imageUrl),
       batteryManager(display),
+      timeManager(display),
       refreshInterval(refreshMs),
       lastUpdate(0) {}
 
@@ -15,6 +16,7 @@ void ImageUpdater::begin() {
 
     displayManager.initialize();
     batteryManager.begin();
+    timeManager.begin();
 
     // Test battery display immediately
     Serial.println("Testing battery display...");
@@ -28,6 +30,7 @@ void ImageUpdater::loop() {
     wifiManager.checkConnection();
     handleScheduledUpdate();
     handleBatteryUpdate();
+    handleTimeUpdate();
 }
 
 void ImageUpdater::performInitialSetup() {
@@ -37,11 +40,26 @@ void ImageUpdater::performInitialSetup() {
         Serial.println("Initial setup complete");
         displayManager.showStatus("Connected", "WiFi", wifiManager.getIPAddress().c_str());
 
+        // Now that WiFi is connected, sync time
+        Serial.println("WiFi connected, syncing time...");
+        Serial.printf("WiFi IP: %s\n", wifiManager.getIPAddress().c_str());
+        Serial.printf("WiFi Signal: %d dBm\n", wifiManager.getSignalStrength());
+
+        timeManager.syncTimeWithNTP();
+
+        if (timeManager.isTimeInitialized()) {
+            Serial.println("Time sync successful!");
+        } else {
+            Serial.println("Time sync failed - will retry later");
+        }
+
         if (imageFetcher.fetchAndDisplay()) {
             Serial.println("Initial image loaded successfully");
-            // Show battery status after image
-            Serial.println("Adding battery display to image...");
-            batteryManager.forceUpdate();
+            // Show battery and time status after image
+            Serial.println("Adding battery and time display to image...");
+            batteryManager.drawBatteryToBuffer();
+            timeManager.drawTimeToBuffer();
+            displayManager.update(); // Single display update
         } else {
             displayManager.showError("Image Error", "Failed to load initial image");
         }
@@ -76,6 +94,10 @@ bool ImageUpdater::ensureConnectivity() {
             displayManager.showError("Connection Lost", "WiFi reconnection failed",
                                    wifiManager.getStatusString().c_str());
             return false;
+        } else {
+            // WiFi reconnected, resync time if needed
+            Serial.println("WiFi reconnected, resyncing time...");
+            timeManager.syncTimeWithNTP();
         }
     }
     return true;
@@ -86,9 +108,11 @@ void ImageUpdater::processImageUpdate() {
 
     if (imageFetcher.fetchAndDisplay()) {
         Serial.println("Image update completed successfully");
-        // Always show battery after successful image load
-        Serial.println("Adding battery display to updated image...");
-        batteryManager.forceUpdate();
+        // Always show battery and time after successful image load
+        Serial.println("Adding battery and time display to updated image...");
+        batteryManager.drawBatteryToBuffer();
+        timeManager.drawTimeToBuffer();
+        displayManager.update(); // Single display update
     } else {
         Serial.printf("Image update failed (attempt %d)\n", imageFetcher.getConsecutiveFailures());
 
@@ -105,6 +129,21 @@ void ImageUpdater::processImageUpdate() {
 }
 
 void ImageUpdater::handleBatteryUpdate() {
-    // Battery manager handles its own timing (every 30 minutes)
-    batteryManager.updateBatteryDisplay();
+    // Check if battery needs update (every 30 minutes)
+    if (batteryManager.shouldUpdate()) {
+        Serial.println("Updating battery display...");
+        batteryManager.drawBatteryToBuffer();
+        timeManager.drawTimeToBuffer(); // Also refresh time
+        displayManager.update();
+    }
+}
+
+void ImageUpdater::handleTimeUpdate() {
+    // Check if time needs update (every 30 minutes)
+    if (timeManager.shouldUpdate()) {
+        Serial.println("Updating time display...");
+        timeManager.drawTimeToBuffer();
+        batteryManager.drawBatteryToBuffer(); // Also refresh battery
+        displayManager.update();
+    }
 }

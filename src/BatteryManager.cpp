@@ -24,6 +24,8 @@ void BatteryManager::forceUpdate() {
     Serial.printf("Battery: %.2fV (%d%%)\n", voltage, percentage);
 
     drawBatteryIndicator();
+    Serial.println("Battery drawn, updating display...");
+    display.display();
     lastBatteryUpdate = millis();
 }
 
@@ -58,40 +60,49 @@ void BatteryManager::drawBatteryIndicator() {
     int displayWidth = display.width();
     int displayHeight = display.height();
 
-    Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
+    // Calculate 5% bottom bar dimensions
+    int bottomBarHeight = displayHeight * 0.05; // 5% of display height
+    int bottomBarY = displayHeight - bottomBarHeight;
 
-    // Position battery display in bottom-right corner
-    int textX = displayWidth - 150;
-    int textY = displayHeight - 50;
+    Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
+    Serial.printf("Bottom bar: height=%d, y=%d\n", bottomBarHeight, bottomBarY);
+
+    // Clear the entire battery area (right half of bottom bar) with WHITE background
+    int batteryAreaX = displayWidth / 2;
+    display.fillRect(batteryAreaX, bottomBarY, displayWidth / 2, bottomBarHeight, WHITE);
+
+    // Position battery display in right half of bottom bar, centered vertically
+    int textSize = 2; // Smaller text to fit in 5% height
+    int textHeight = textSize * 8; // Approximate text height
+    int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
+    int textX = displayWidth - 120; // Right-aligned with margin
 
     Serial.printf("Battery position: (%d,%d)\n", textX, textY);
 
-    // Clear the battery area with white background
-    display.fillRect(textX - 10, textY - 10, 140, 40, WHITE);
-
-    // Draw border for visibility (debug)
-    display.drawRect(textX - 10, textY - 10, 140, 40, BLACK);
-
-    // Draw percentage text
+    // Draw percentage text in BLACK on WHITE background
     display.setCursor(textX, textY);
-    display.setTextSize(3);
-    display.setTextColor(BLACK);
+    display.setTextSize(textSize);
+    display.setTextColor(BLACK, WHITE); // Explicitly set BLACK text on WHITE background
     display.printf("%d%%", percentage);
 
-    // Draw simple battery icon
-    int iconX = textX + 80;
-    int iconY = textY + 5;
-    display.drawRect(iconX, iconY, 30, 15, BLACK);
-    display.fillRect(iconX + 30, iconY + 4, 4, 7, BLACK);
+    // Draw battery icon next to percentage in BLACK
+    int iconX = textX + 50;
+    int iconY = textY + 2;
+    int iconWidth = 24;
+    int iconHeight = 12;
 
-    // Fill battery based on percentage
-    int fillWidth = (28 * percentage) / 100;
+    // Battery outline in BLACK
+    display.drawRect(iconX, iconY, iconWidth, iconHeight, BLACK);
+    // Battery tip in BLACK
+    display.fillRect(iconX + iconWidth, iconY + 3, 3, iconHeight - 6, BLACK);
+
+    // Fill battery based on percentage in BLACK
+    int fillWidth = ((iconWidth - 2) * percentage) / 100;
     if (fillWidth > 0) {
-        display.fillRect(iconX + 1, iconY + 1, fillWidth, 13, BLACK);
+        display.fillRect(iconX + 1, iconY + 1, fillWidth, iconHeight - 2, BLACK);
     }
 
-    Serial.println("Battery drawn, updating display...");
-    display.display();
+    Serial.println("Battery drawn to buffer");
 }
 
 void BatteryManager::drawBatteryPercentage(int percentage) {
@@ -106,12 +117,20 @@ void BatteryManager::clearBatteryArea() {
     // This method is now integrated into drawBatteryIndicator
 }
 
+void BatteryManager::drawBatteryToBuffer() {
+    drawBatteryIndicator(); // This now only draws to buffer
+    lastBatteryUpdate = millis();
+}
+
 void BatteryManager::getBatteryArea(int &x, int &y, int &width, int &height) {
     int displayWidth = display.width();
     int displayHeight = display.height();
 
-    x = displayWidth - 160;
-    y = displayHeight - 60;
-    width = 160;
-    height = 60;
+    // Battery area is right half of 5% bottom bar
+    int bottomBarHeight = displayHeight * 0.05;
+
+    x = displayWidth / 2;
+    y = displayHeight - bottomBarHeight;
+    width = displayWidth / 2;
+    height = bottomBarHeight;
 }

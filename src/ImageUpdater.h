@@ -5,6 +5,7 @@
 #include "DisplayManager.h"
 #include "ImageFetcher.h"
 #include "BatteryManager.h"
+#include "TimeManager.h"
 
 class ImageUpdater {
 public:
@@ -19,6 +20,7 @@ private:
     DisplayManager displayManager;
     ImageFetcher imageFetcher;
     BatteryManager batteryManager;
+    TimeManager timeManager;
 
     unsigned long refreshInterval;
     unsigned long lastUpdate;
@@ -28,6 +30,7 @@ private:
     bool ensureConnectivity();
     void processImageUpdate();
     void handleBatteryUpdate();
+    void handleTimeUpdate();
 };
 
 #endif
