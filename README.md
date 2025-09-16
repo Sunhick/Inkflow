@@ -1,6 +1,8 @@
-# Inkplate Image Display with Weather
+# Inkplate Smart Display
 
-A PlatformIO project for displaying images from a web URL on Inkplate e-paper displays with comprehensive status information. The project fetches images over WiFi and displays them with weather, battery, and time information in a clean left sidebar layout.
+![Build Status](https://github.com/Sunhick/Inkplate10-client/workflows/Build%20Firmware/badge.svg)
+
+A smart e-paper display for Inkplate devices that shows web images with weather, time, and battery status in an elegant sidebar layout.
 
 ## Features
 
@@ -15,42 +17,6 @@ A PlatformIO project for displaying images from a web URL on Inkplate e-paper di
 - **Three-section left sidebar layout** (Time | Weather | Battery)
 - Modular widget-based architecture with Layout Manager
 - Error handling and status messages
-
-## Architecture
-
-The project uses a **Layout-Based Widget Architecture** centered around a **Layout Manager**:
-
-```
-main.cpp
-    └── LayoutManager (Display Partitioning & Orchestration)
-        ├── Layout Regions:
-        │   ├── Image Region (main content area)
-        │   ├── Sidebar Region (divided into 3 sections)
-        │   ├── Time Region (top sidebar section)
-        │   ├── Weather Region (middle sidebar section)
-        │   └── Battery Region (bottom sidebar section)
-        │
-        └── Widgets:
-            ├── DisplayManager (Inkplate display control)
-            ├── WiFiManager (connectivity management)
-            ├── ImageWidget (image display)
-            ├── BatteryWidget (battery status)
-            ├── TimeWidget (date/time display)
-            └── WeatherWidget (weather data)
-```
-
-**Layout Manager Responsibilities:**
-- **Display Partitioning** - Calculates and manages layout regions
-- **Widget Orchestration** - Coordinates rendering of all widgets
-- **Region Management** - Provides layout boundaries to widgets
-- **Efficient Rendering** - Single display update for complete layout
-
-**Key Benefits:**
-- **True Layout System** - Proper display partitioning with defined regions
-- **Widget-Based Design** - Each component renders within its assigned region
-- **Scalable Architecture** - Easy to add new widgets or change layouts
-- **Clean Separation** - Layout logic separated from widget logic
-- **Efficient Updates** - Coordinated rendering prevents display conflicts
 
 ## Hardware Requirements
 
@@ -104,58 +70,20 @@ Edit `src/config/Config.h` with your settings:
 
 
 
-## Project Structure
+## Quick Start
 
-```
-├── Makefile                    # Build automation
-├── platformio.ini              # PlatformIO configuration
-├── src/
-│   ├── main.cpp               # Main application entry point
-│   ├── config/
-│   │   ├── Config.h           # Configuration file (copy from template)
-│   │   └── Config.h.template  # Configuration template
-│   ├── core/
-│   │   └── Widget.h           # Base widget class
-│   ├── managers/
-│   │   ├── LayoutManager.h    # Main layout orchestrator
-│   │   ├── LayoutManager.cpp  # Layout management implementation
-│   │   ├── DisplayManager.h   # Display operations
-│   │   ├── DisplayManager.cpp # Display implementation
-│   │   ├── WiFiManager.h      # WiFi connectivity
-│   │   └── WiFiManager.cpp    # WiFi implementation
-│   └── widgets/
-│       ├── ImageWidget.h      # Image display widget
-│       ├── ImageWidget.cpp    # Image widget implementation
-│       ├── TimeWidget.h       # Time display widget
-│       ├── TimeWidget.cpp     # Time widget implementation
-│       ├── WeatherWidget.h    # Weather display widget
-│       ├── WeatherWidget.cpp  # Weather widget implementation
-│       ├── BatteryWidget.h    # Battery display widget
-│       └── BatteryWidget.cpp  # Battery widget implementation
-└── README.md
+```bash
+# Build and upload
+make build
+make upload
+
+# Or use PlatformIO directly
+pio run --target upload
 ```
 
-## Automated Builds
+## Pre-built Firmware
 
-This project includes GitHub Actions that automatically build firmware on every commit:
-
-- **Latest builds**: Available in [Actions tab](../../actions) as artifacts
-- **Stable releases**: Available on [Releases page](../../releases)
-- **Build status**: ![Build Status](../../workflows/Build%20Firmware/badge.svg)
-
-Each build includes:
-- `inkplate-image-display.bin` - Main firmware
-- `bootloader.bin` - ESP32 bootloader
-- `partitions.bin` - Partition table
-- Flash scripts for Linux/macOS/Windows
-- Detailed flashing instructions
-
-## Available Make Commands
-
-- `make build` - Compile the project
-- `make upload` - Upload firmware to device
-- `make monitor` - Start serial monitor
-- `make clean` - Clean build files
+Download ready-to-flash firmware from [Releases](../../releases) or [latest builds](../../actions).
 
 
 
