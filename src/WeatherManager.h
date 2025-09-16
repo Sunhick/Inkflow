@@ -10,6 +10,7 @@ struct WeatherData {
     String description;
     float temperature;
     int humidity;
+    int precipitationProbability;
     String icon;
     bool isValid;
 };

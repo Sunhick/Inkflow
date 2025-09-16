@@ -15,6 +15,7 @@ public:
 
     void begin();
     void loop();
+    void forceImageRefresh(); // Manual refresh triggered by button
 
 private:
     WiFiManager wifiManager;

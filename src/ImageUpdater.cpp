@@ -191,3 +191,21 @@ void ImageUpdater::handleWeatherUpdate() {
         displayManager.update();
     }
 }
+
+void ImageUpdater::forceImageRefresh() {
+    Serial.println("Manual image refresh triggered by WAKE button");
+
+    if (ensureConnectivity()) {
+        // Force refresh of weather and time data
+        timeManager.syncTimeWithNTP();
+        weatherManager.fetchWeatherData();
+
+        // Process image update
+        processImageUpdate();
+
+        // Update the last update time to reset the scheduled timer
+        lastUpdate = millis();
+    } else {
+        Serial.println("Cannot refresh image - no connectivity");
+    }
+}

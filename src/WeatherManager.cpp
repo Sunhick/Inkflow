@@ -74,6 +74,7 @@ String WeatherManager::buildWeatherURL() {
     url += "?latitude=" + String(WEATHER_LATITUDE);
     url += "&longitude=" + String(WEATHER_LONGITUDE);
     url += "&current_weather=true&temperature_unit=" + String(WEATHER_UNITS);
+    url += "&hourly=precipitation_probability&forecast_days=1";
     return url;
 }
 
@@ -96,11 +97,22 @@ void WeatherManager::parseWeatherResponse(String response) {
         int weatherCode = doc["current_weather"]["weathercode"];
         currentWeather.description = getWeatherDescription(weatherCode);
         currentWeather.icon = String(weatherCode);
+
+        // Extract precipitation probability from hourly data (current hour)
+        currentWeather.precipitationProbability = 0;
+        if (doc["hourly"]["precipitation_probability"]) {
+            JsonArray precipArray = doc["hourly"]["precipitation_probability"];
+            if (precipArray.size() > 0) {
+                currentWeather.precipitationProbability = precipArray[0]; // Current hour
+            }
+        }
+
         currentWeather.isValid = true;
 
-        Serial.printf("Weather: %.1f°F, %s (code: %d)\n",
+        Serial.printf("Weather: %.1f°F, %s, %d%% rain (code: %d)\n",
                       currentWeather.temperature,
                       currentWeather.description.c_str(),
+                      currentWeather.precipitationProbability,
                       weatherCode);
     } else {
         Serial.println("Failed to parse weather data");
@@ -109,22 +121,37 @@ void WeatherManager::parseWeatherResponse(String response) {
 }
 
 String WeatherManager::getWeatherDescription(int weatherCode) {
-    // Convert Open-Meteo weather codes to descriptions
+    // Convert Open-Meteo weather codes to detailed descriptions
     switch (weatherCode) {
-        case 0: return "Clear";
-        case 1: case 2: case 3: return "Partly Cloudy";
-        case 45: case 48: return "Foggy";
-        case 51: case 53: case 55: return "Drizzle";
-        case 56: case 57: return "Freezing Drizzle";
-        case 61: case 63: case 65: return "Rain";
-        case 66: case 67: return "Freezing Rain";
-        case 71: case 73: case 75: return "Snow";
+        case 0: return "Clear Sky";
+        case 1: return "Mainly Clear";
+        case 2: return "Partly Cloudy";
+        case 3: return "Overcast";
+        case 45: return "Fog";
+        case 48: return "Depositing Rime Fog";
+        case 51: return "Light Drizzle";
+        case 53: return "Moderate Drizzle";
+        case 55: return "Dense Drizzle";
+        case 56: return "Light Freezing Drizzle";
+        case 57: return "Dense Freezing Drizzle";
+        case 61: return "Slight Rain";
+        case 63: return "Moderate Rain";
+        case 65: return "Heavy Rain";
+        case 66: return "Light Freezing Rain";
+        case 67: return "Heavy Freezing Rain";
+        case 71: return "Slight Snow";
+        case 73: return "Moderate Snow";
+        case 75: return "Heavy Snow";
         case 77: return "Snow Grains";
-        case 80: case 81: case 82: return "Rain Showers";
-        case 85: case 86: return "Snow Showers";
+        case 80: return "Slight Rain Showers";
+        case 81: return "Moderate Rain Showers";
+        case 82: return "Violent Rain Showers";
+        case 85: return "Slight Snow Showers";
+        case 86: return "Heavy Snow Showers";
         case 95: return "Thunderstorm";
-        case 96: case 99: return "Thunderstorm";
-        default: return "Unknown";
+        case 96: return "Thunderstorm with Hail";
+        case 99: return "Heavy Thunderstorm with Hail";
+        default: return "Unknown Weather";
     }
 }
 
@@ -159,28 +186,26 @@ void WeatherManager::drawWeatherDisplay() {
         return;
     }
 
-    // Draw temperature (large)
+    // Draw temperature (large) - fix degree symbol issue
     display.setCursor(weatherX, weatherY + 40);
     display.setTextSize(4);
     display.setTextColor(0);
-    display.printf("%d°F", (int)currentWeather.temperature);
+    display.print((int)currentWeather.temperature);
+    display.print("F");
 
-    // Draw weather description
+    // Draw weather description (full verbose description)
     display.setCursor(weatherX, weatherY + 90);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.print(currentWeather.description);
 
-    // Get first two words of description for better readability
-    String twoWordDesc = currentWeather.description;
-    int firstSpace = twoWordDesc.indexOf(' ');
-    if (firstSpace > 0) {
-        int secondSpace = twoWordDesc.indexOf(' ', firstSpace + 1);
-        if (secondSpace > 0) {
-            twoWordDesc = twoWordDesc.substring(0, secondSpace);
-        }
-    }
-
-    display.print(twoWordDesc);
+    // Add precipitation probability
+    display.setCursor(weatherX, weatherY + 120);
+    display.setTextSize(2);
+    display.setTextColor(0);
+    display.print("Rain: ");
+    display.print(currentWeather.precipitationProbability);
+    display.print("%");
 
     // Draw separator line below weather section
     int sectionHeight = displayHeight / 3;
@@ -233,7 +258,13 @@ void WeatherManager::drawWeatherToBuffer() {
             display.setCursor(weatherX, weatherY + 40);
             display.setTextSize(2);
             display.setTextColor(0);
-            display.print("N/A");
+            display.print("No Data");
+
+            display.setCursor(weatherX, weatherY + 70);
+            display.setTextSize(1);
+            display.setTextColor(0);
+            display.print("Check WiFi");
+
             ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
             lastWeatherUpdate = millis();
             return;
