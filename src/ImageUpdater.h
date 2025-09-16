@@ -18,6 +18,7 @@ public:
     void forceImageRefresh(); // Manual refresh triggered by button
 
 private:
+    void updateAllSidebarComponents(); // Update all sidebar components in one go
     WiFiManager wifiManager;
     DisplayManager displayManager;
     ImageFetcher imageFetcher;
@@ -31,7 +32,7 @@ private:
     void performInitialSetup();
     void handleScheduledUpdate();
     bool ensureConnectivity();
-    void processImageUpdate();
+    void processImageUpdate(bool showLoadingStatus = true);
     void handleBatteryUpdate();
     void handleTimeUpdate();
     void handleWeatherUpdate();

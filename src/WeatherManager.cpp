@@ -174,6 +174,7 @@ void WeatherManager::drawWeatherDisplay() {
     display.setCursor(weatherX, weatherY);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print("WEATHER");
 
     if (!currentWeather.isValid) {
@@ -182,6 +183,7 @@ void WeatherManager::drawWeatherDisplay() {
         display.setCursor(weatherX, weatherY + 40);
         display.setTextSize(2);
         display.setTextColor(0);
+        display.setTextWrap(true);
         display.print("N/A");
         return;
     }
@@ -190,6 +192,7 @@ void WeatherManager::drawWeatherDisplay() {
     display.setCursor(weatherX, weatherY + 40);
     display.setTextSize(4);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print((int)currentWeather.temperature);
     display.print("F");
 
@@ -197,12 +200,14 @@ void WeatherManager::drawWeatherDisplay() {
     display.setCursor(weatherX, weatherY + 90);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print(currentWeather.description);
 
     // Add precipitation probability
     display.setCursor(weatherX, weatherY + 120);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print("Rain: ");
     display.print(currentWeather.precipitationProbability);
     display.print("%");

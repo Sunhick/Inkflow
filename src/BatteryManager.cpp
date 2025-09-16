@@ -75,12 +75,14 @@ void BatteryManager::drawBatteryIndicator() {
     display.setCursor(batteryX, batteryY + 10);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print("BATTERY");
 
     // Draw percentage text
     display.setCursor(batteryX, batteryY + 40);
     display.setTextSize(3); // Larger text for sidebar
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.printf("%d%%", percentage);
 
     // Draw battery icon below percentage
@@ -107,6 +109,7 @@ void BatteryManager::drawBatteryIndicator() {
     display.setCursor(batteryX, batteryY + 110);
     display.setTextSize(1);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.printf("%.2fV", voltage);
 
     Serial.println("Battery drawn to sidebar buffer");

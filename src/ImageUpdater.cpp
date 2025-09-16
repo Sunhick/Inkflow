@@ -67,38 +67,34 @@ void ImageUpdater::performInitialSetup() {
             Serial.println("Initial image loaded successfully");
             // Show battery, time, and weather status after image
             Serial.println("Adding battery, time, and weather display to image...");
-            batteryManager.drawBatteryToBuffer();
-            timeManager.drawTimeToBuffer();
-            weatherManager.drawWeatherToBuffer();
-            displayManager.update(); // Single display update
+            updateAllSidebarComponents();
         } else {
             // Show error in photo area and draw sidebar
             imageFetcher.showErrorInPhotoArea("IMAGE ERROR", "Failed to load initial image");
-            batteryManager.drawBatteryToBuffer();
-            timeManager.drawTimeToBuffer();
-            weatherManager.drawWeatherToBuffer();
-            displayManager.update();
+            updateAllSidebarComponents();
         }
     } else {
         // Show error in photo area and draw sidebar
         imageFetcher.showErrorInPhotoArea("WIFI ERROR", "Failed to connect to network",
                                         wifiManager.getStatusString().c_str());
-        batteryManager.drawBatteryToBuffer();
-        timeManager.drawTimeToBuffer();
-        weatherManager.drawWeatherToBuffer();
-        displayManager.update();
+        updateAllSidebarComponents();
     }
 
     lastUpdate = millis();
 }
 
 void ImageUpdater::handleScheduledUpdate() {
+    // Automatic image updates every 24 hours + manual refresh via WAKE button
     unsigned long currentTime = millis();
 
     if (currentTime - lastUpdate >= refreshInterval) {
-        Serial.println("Starting scheduled image update...");
+        Serial.println("Starting scheduled daily image update...");
 
         if (ensureConnectivity()) {
+            // Force refresh of weather and time data during scheduled update
+            timeManager.syncTimeWithNTP();
+            weatherManager.fetchWeatherData();
+
             processImageUpdate();
         }
 
@@ -115,10 +111,7 @@ bool ImageUpdater::ensureConnectivity() {
             // Show error in photo area and draw sidebar
             imageFetcher.showErrorInPhotoArea("CONNECTION LOST", "WiFi reconnection failed",
                                             wifiManager.getStatusString().c_str());
-            batteryManager.drawBatteryToBuffer();
-            timeManager.drawTimeToBuffer();
-            weatherManager.drawWeatherToBuffer();
-            displayManager.update();
+            updateAllSidebarComponents();
             return false;
         } else {
             // WiFi reconnected, resync time and weather if needed
@@ -130,17 +123,16 @@ bool ImageUpdater::ensureConnectivity() {
     return true;
 }
 
-void ImageUpdater::processImageUpdate() {
-    displayManager.showStatus("Loading image...");
+void ImageUpdater::processImageUpdate(bool showLoadingStatus) {
+    if (showLoadingStatus) {
+        displayManager.showStatus("Loading image...");
+    }
 
     if (imageFetcher.fetchAndDisplay()) {
         Serial.println("Image update completed successfully");
         // Always show battery and time after successful image load
-        Serial.println("Adding battery and time display to updated image...");
-        batteryManager.drawBatteryToBuffer();
-        timeManager.drawTimeToBuffer();
-        weatherManager.drawWeatherToBuffer(); // Weather now displayed in 20% section
-        displayManager.update(); // Single display update
+        Serial.println("Adding battery, time, and weather display to updated image...");
+        updateAllSidebarComponents();
     } else {
         Serial.printf("Image update failed (attempt %d)\n", imageFetcher.getConsecutiveFailures());
 
@@ -151,45 +143,53 @@ void ImageUpdater::processImageUpdate() {
                 wifiManager.getSignalStrength()
             );
             // Still draw the sidebar status
-            batteryManager.drawBatteryToBuffer();
-            timeManager.drawTimeToBuffer();
-            weatherManager.drawWeatherToBuffer();
-            displayManager.update();
+            updateAllSidebarComponents();
         }
     }
 }
 
 void ImageUpdater::handleBatteryUpdate() {
+    // Automatic sidebar updates disabled - only manual refresh via WAKE button
+    // Uncomment the code below to re-enable automatic sidebar updates
+
+    /*
     // Check if battery needs update (every 30 minutes)
     if (batteryManager.shouldUpdate()) {
-        Serial.println("Updating battery display...");
-        batteryManager.drawBatteryToBuffer();
-        timeManager.drawTimeToBuffer(); // Also refresh time
-        weatherManager.drawWeatherToBuffer(); // Weather now displayed in 20% section
-        displayManager.update();
+        updateAllSidebarComponents();
     }
+    */
 }
 
 void ImageUpdater::handleTimeUpdate() {
+    // Automatic sidebar updates disabled - only manual refresh via WAKE button
+    // Uncomment the code below to re-enable automatic sidebar updates
+
+    /*
     // Check if time needs update (every 30 minutes)
     if (timeManager.shouldUpdate()) {
-        Serial.println("Updating time display...");
-        timeManager.drawTimeToBuffer();
-        batteryManager.drawBatteryToBuffer(); // Also refresh battery
-        weatherManager.drawWeatherToBuffer(); // Weather now displayed in 20% section
-        displayManager.update();
+        updateAllSidebarComponents();
     }
+    */
 }
 
 void ImageUpdater::handleWeatherUpdate() {
+    // Automatic sidebar updates disabled - only manual refresh via WAKE button
+    // Uncomment the code below to re-enable automatic sidebar updates
+
+    /*
     // Check if weather needs update (every 30 minutes)
     if (weatherManager.shouldUpdate()) {
-        Serial.println("Updating weather display...");
-        weatherManager.drawWeatherToBuffer();
-        batteryManager.drawBatteryToBuffer(); // Also refresh battery
-        timeManager.drawTimeToBuffer(); // Also refresh time
-        displayManager.update();
+        updateAllSidebarComponents();
     }
+    */
+}
+
+void ImageUpdater::updateAllSidebarComponents() {
+    Serial.println("Updating all sidebar components...");
+    batteryManager.drawBatteryToBuffer();
+    timeManager.drawTimeToBuffer();
+    weatherManager.drawWeatherToBuffer();
+    displayManager.update(); // Single display update for all components
 }
 
 void ImageUpdater::forceImageRefresh() {
@@ -200,8 +200,8 @@ void ImageUpdater::forceImageRefresh() {
         timeManager.syncTimeWithNTP();
         weatherManager.fetchWeatherData();
 
-        // Process image update
-        processImageUpdate();
+        // Process image update without showing loading status
+        processImageUpdate(false);
 
         // Update the last update time to reset the scheduled timer
         lastUpdate = millis();

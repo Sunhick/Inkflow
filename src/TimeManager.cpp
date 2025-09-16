@@ -132,6 +132,7 @@ void TimeManager::drawTimeDisplay() {
     display.setCursor(timeX, timeY);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print("DATE & TIME");
 
     // Get formatted strings
@@ -145,6 +146,7 @@ void TimeManager::drawTimeDisplay() {
     display.setCursor(timeX, timeY + 30);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     dayStr.toUpperCase();
     display.print(dayStr);
 
@@ -152,12 +154,14 @@ void TimeManager::drawTimeDisplay() {
     display.setCursor(timeX, timeY + 60);
     display.setTextSize(2);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print(dateStr);
 
     // Draw time (larger)
     display.setCursor(timeX, timeY + 90);
     display.setTextSize(3);
     display.setTextColor(0);
+    display.setTextWrap(true);
     display.print(timeStr);
 
     // Draw horizontal separator lines between sections
@@ -269,11 +273,13 @@ void TimeManager::drawTimeToBuffer() {
             display.setCursor(timeX, timeY);
             display.setTextSize(2);
             display.setTextColor(0);
+            display.setTextWrap(true);
             display.print("DATE & TIME");
 
             display.setCursor(timeX, timeY + 40);
             display.setTextSize(1);
             display.setTextColor(0);
+            display.setTextWrap(true);
             display.print("Time Sync Failed");
             ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
             lastTimeUpdate = millis();

@@ -5,6 +5,10 @@ DisplayManager::DisplayManager(Inkplate &display) : display(display) {}
 void DisplayManager::initialize() {
     display.begin();
     display.setDisplayMode(INKPLATE_3BIT);
+
+    // Enable text smoothing and wrapping for better rendering
+    display.setTextWrap(true);
+    display.cp437(true); // Enable extended character set
 }
 
 void DisplayManager::showStatus(const char* message, const char* networkName, const char* ipAddress) {
@@ -62,19 +66,24 @@ void DisplayManager::update() {
 
 void DisplayManager::setTitle(const char* title) {
     display.setCursor(10, 10);
-    display.setTextSize(2);
-    display.setTextColor(0);
+    setupSmoothText(2, 0);
     display.print(title);
 }
 
 void DisplayManager::setMessage(const char* message, int y) {
     display.setCursor(10, y);
-    display.setTextSize(1);
+    setupSmoothText(1, 0);
     display.print(message);
 }
 
 void DisplayManager::setSmallText(const char* text, int x, int y) {
     display.setCursor(x, y);
-    display.setTextSize(1);
+    setupSmoothText(1, 0);
     display.print(text);
+}
+
+void DisplayManager::setupSmoothText(int size, int color) {
+    display.setTextSize(size);
+    display.setTextColor(color);
+    display.setTextWrap(true);
 }
