@@ -59,18 +59,30 @@ main.cpp
 
 ## Setup
 
-### 1. Install PlatformIO
+You have two options for getting the firmware onto your device:
+
+### Option A: Download Pre-built Firmware (Easiest)
+
+1. **Download firmware** from the [Releases page](../../releases) or [latest build artifacts](../../actions)
+2. **Extract the firmware package**
+3. **Install esptool**: `pip install esptool`
+4. **Flash using included scripts**:
+   - Linux/macOS: `./flash.sh [port]`
+   - Windows: `flash.bat [COM_port]`
+
+**Note**: Pre-built firmware uses template configuration. You'll need to rebuild with your settings for it to work properly.
+
+### Option B: Build from Source (Recommended)
+
+#### 1. Install PlatformIO
 
 Install PlatformIO Core or use the PlatformIO IDE extension for VS Code.
 
-### 2. Configuration
+#### 2. Configuration
 
-You have two options for configuration:
-
-#### Option A: Manual Configuration (Recommended)
 ```bash
 # Copy the template and edit manually
-make copy-config-template
+cp src/config/Config.h.template src/config/Config.h
 
 # Edit src/config/Config.h with your settings
 # Then build and upload
@@ -122,6 +134,21 @@ Edit `src/config/Config.h` with your settings:
 │       └── BatteryWidget.cpp  # Battery widget implementation
 └── README.md
 ```
+
+## Automated Builds
+
+This project includes GitHub Actions that automatically build firmware on every commit:
+
+- **Latest builds**: Available in [Actions tab](../../actions) as artifacts
+- **Stable releases**: Available on [Releases page](../../releases)
+- **Build status**: ![Build Status](../../workflows/Build%20Firmware/badge.svg)
+
+Each build includes:
+- `inkplate-image-display.bin` - Main firmware
+- `bootloader.bin` - ESP32 bootloader
+- `partitions.bin` - Partition table
+- Flash scripts for Linux/macOS/Windows
+- Detailed flashing instructions
 
 ## Available Make Commands
 
