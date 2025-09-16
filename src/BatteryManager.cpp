@@ -1,4 +1,5 @@
 #include "BatteryManager.h"
+#include "ImageFetcher.h"
 #include "Config.h"
 
 BatteryManager::BatteryManager(Inkplate &display)
@@ -129,6 +130,7 @@ void BatteryManager::clearBatteryArea() {
 
 void BatteryManager::drawBatteryToBuffer() {
     drawBatteryIndicator(); // This now only draws to buffer
+    ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
     lastBatteryUpdate = millis();
 }
 

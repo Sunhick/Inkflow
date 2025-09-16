@@ -1,4 +1,5 @@
 #include "WeatherManager.h"
+#include "ImageFetcher.h"
 #include "Config.h"
 
 const char* WeatherManager::WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
@@ -77,7 +78,7 @@ String WeatherManager::buildWeatherURL() {
 }
 
 void WeatherManager::parseWeatherResponse(String response) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, response.c_str());
 
     if (error) {
@@ -233,12 +234,14 @@ void WeatherManager::drawWeatherToBuffer() {
             display.setTextSize(2);
             display.setTextColor(0);
             display.print("N/A");
+            ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
             lastWeatherUpdate = millis();
             return;
         }
     }
 
     drawWeatherDisplay();
+    ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
     lastWeatherUpdate = millis();
 }
 

@@ -1,4 +1,5 @@
 #include "TimeManager.h"
+#include "ImageFetcher.h"
 #include "Config.h"
 
 const char* TimeManager::NTP_SERVER = "pool.ntp.org";
@@ -274,12 +275,14 @@ void TimeManager::drawTimeToBuffer() {
             display.setTextSize(1);
             display.setTextColor(0);
             display.print("Time Sync Failed");
+            ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
             lastTimeUpdate = millis();
             return;
         }
     }
 
     drawTimeDisplay(); // This now only draws to buffer
+    ImageFetcher::drawVerticalSeparator(display); // Ensure separator is visible
     lastTimeUpdate = millis();
 }
 

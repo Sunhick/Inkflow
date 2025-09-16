@@ -63,7 +63,7 @@ void DisplayManager::update() {
 void DisplayManager::setTitle(const char* title) {
     display.setCursor(10, 10);
     display.setTextSize(2);
-    display.setTextColor(BLACK);
+    display.setTextColor(0);
     display.print(title);
 }
 

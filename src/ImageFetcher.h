@@ -13,6 +13,9 @@ public:
     void showDiagnosticsInPhotoArea(const char* wifiIP, int signalStrength);
     void showErrorInPhotoArea(const char* title, const char* message, const char* details = nullptr);
 
+    // Static helper function to draw vertical separator
+    static void drawVerticalSeparator(Inkplate &display);
+
 private:
     Inkplate &display;
     const char* imageUrl;
