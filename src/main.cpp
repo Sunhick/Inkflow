@@ -1,34 +1,53 @@
-#include <Inkplate.h>
-#include "ImageUpdater.h"
-#include "Config.h"
+#include "managers/LayoutManager.h"
+#include "config/Config.h"
 
-Inkplate display(INKPLATE_3BIT);
-ImageUpdater updater(display, WIFI_SSID, WIFI_PASSWORD, SERVER_URL, REFRESH_MS);
-
-bool lastButtonState = HIGH;
-unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 50;
+LayoutManager layoutManager(WIFI_SSID, WIFI_PASSWORD, SERVER_URL, REFRESH_MS);
 
 void handleWakeButton();
 
 void setup() {
+    Serial.begin(115200);
     delay(1000);
 
-    // Initialize WAKE button
-    pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
+    Serial.println("=== INKPLATE IMAGE DISPLAY STARTING ===");
+    Serial.printf("Server URL: %s\n", SERVER_URL);
+    Serial.printf("WiFi SSID: %s\n", WIFI_SSID);
+    Serial.printf("Refresh interval: %lu ms\n", REFRESH_MS);
 
-    // Also try other common button pins
-    pinMode(34, INPUT_PULLUP);
-    pinMode(39, INPUT_PULLUP);
+    // Initialize WAKE button pins
+    // pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
+    // pinMode(34, INPUT_PULLUP);
+    // pinMode(39, INPUT_PULLUP);
 
     Serial.println("Button pins initialized: 36, 34, 39");
 
-    updater.begin();
+    layoutManager.begin();
+
+    // Force an immediate refresh to load the image
+    Serial.println("Waiting for WiFi connection...");
+    delay(5000); // Give more time for WiFi to connect
+    Serial.println("Forcing immediate refresh...");
+    layoutManager.forceRefresh();
+    Serial.println("Setup complete");
 }
 
 void loop() {
-    updater.loop();
-    handleWakeButton();
+    layoutManager.loop();
+    // handleWakeButton();
+
+    // Debug: Print status every 30 seconds
+    static unsigned long lastStatusPrint = 0;
+    if (millis() - lastStatusPrint > 30000) {
+        Serial.println("=== STATUS CHECK ===");
+        Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+            Serial.printf("Signal Strength: %d dBm\n", WiFi.RSSI());
+        }
+        Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+        Serial.printf("Uptime: %lu seconds\n", millis() / 1000);
+        lastStatusPrint = millis();
+    }
 }
 
 void handleWakeButton() {
@@ -51,8 +70,8 @@ void handleWakeButton() {
         (button34 == LOW && lastButton34 == HIGH) ||
         (button39 == LOW && lastButton39 == HIGH)) {
 
-        Serial.println("Button pressed - refreshing image");
-        updater.forceImageRefresh();
+        Serial.println("Button pressed - refreshing layout");
+        layoutManager.forceRefresh();
         delay(500); // Prevent multiple triggers
     }
 

@@ -7,13 +7,50 @@ A PlatformIO project for displaying images from a web URL on Inkplate e-paper di
 - Fetches JPEG images from web URLs
 - **Weather information** with temperature and conditions from free Open-Meteo API (no API key required!)
 - Configurable WiFi credentials
-- Automatic refresh at specified intervals
+- Automatic refresh at specified intervals (default: 24 hours)
+- Manual refresh via WAKE button
 - Support for Inkplate 10 (3-bit grayscale mode)
 - Battery monitoring with percentage display and charging icon
 - Time display with automatic updates
-- **Three-section bottom status bar with white background and black text** (Time | Weather | Battery)
-- Status updates every 30 minutes (weather, battery, time)
+- **Three-section sidebar layout** (Time | Weather | Battery)
+- Modular architecture with Layout Manager orchestrating all components
 - Error handling and status messages
+
+## Architecture
+
+The project uses a **Layout-Based Widget Architecture** centered around a **Layout Manager**:
+
+```
+main.cpp
+    └── LayoutManager (Display Partitioning & Orchestration)
+        ├── Layout Regions:
+        │   ├── Image Region (main content area)
+        │   ├── Sidebar Region (divided into 3 sections)
+        │   ├── Time Region (top sidebar section)
+        │   ├── Weather Region (middle sidebar section)
+        │   └── Battery Region (bottom sidebar section)
+        │
+        └── Widget Managers:
+            ├── DisplayManager (Inkplate display control)
+            ├── WiFiManager (connectivity management)
+            ├── ImageFetcher (image widget)
+            ├── BatteryManager (battery status widget)
+            ├── TimeManager (date/time widget)
+            └── WeatherManager (weather data widget)
+```
+
+**Layout Manager Responsibilities:**
+- **Display Partitioning** - Calculates and manages layout regions
+- **Widget Orchestration** - Coordinates rendering of all widgets
+- **Region Management** - Provides layout boundaries to widgets
+- **Efficient Rendering** - Single display update for complete layout
+
+**Key Benefits:**
+- **True Layout System** - Proper display partitioning with defined regions
+- **Widget-Based Design** - Each component renders within its assigned region
+- **Scalable Architecture** - Easy to add new widgets or change layouts
+- **Clean Separation** - Layout logic separated from widget logic
+- **Efficient Updates** - Coordinated rendering prevents display conflicts
 
 ## Hardware Requirements
 
@@ -26,9 +63,23 @@ A PlatformIO project for displaying images from a web URL on Inkplate e-paper di
 
 Install PlatformIO Core or use the PlatformIO IDE extension for VS Code.
 
-### 2. Build and Upload
+### 2. Configuration
 
-Configuration is done at build time using command-line parameters. The Makefile automatically generates a `src/Config.h` file with your settings:
+You have two options for configuration:
+
+#### Option A: Manual Configuration (Recommended)
+```bash
+# Copy the template and edit manually
+make copy-config-template
+
+# Edit src/config/Config.h with your settings
+# Then build and upload
+make build
+make upload
+```
+
+#### Option B: Command-line Configuration
+Configuration is done at build time using command-line parameters. The Makefile automatically generates a `src/config/Config.h` file with your settings:
 
 **Step-by-step workflow:**
 

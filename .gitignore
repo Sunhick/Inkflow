@@ -12,6 +12,7 @@
 
 # Generated configuration file (contains sensitive data)
 src/Config.h
+src/config/Config.h
 
 # IDE files
 .vscode/
