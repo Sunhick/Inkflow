@@ -52,62 +52,51 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
     // Clear the entire display first (like the old working code)
     display.clearDisplay();
 
-    // Use the simple approach that worked in your old code - just try to draw the image
-    Serial.println("Attempting to draw image with Inkplate library...");
+    // Try to draw the image - no loading messages, just attempt silently
     bool success = display.drawImage(imageUrl, region.x, region.y, false, false);
 
     if (success) {
         Serial.println("Image downloaded and displayed successfully");
         return true;
-    } else {
-        Serial.println("Inkplate drawImage failed at region position");
-
-        // Try without specifying position (like the old code might have done)
-        Serial.println("Trying to draw image at origin (0,0)...");
-        success = display.drawImage(imageUrl, 0, 0, false, false);
-
-        if (success) {
-            Serial.println("Image displayed at origin successfully");
-            return true;
-        } else {
-            Serial.println("Image drawing failed - trying with dithering...");
-
-            // Try with different parameters
-            success = display.drawImage(imageUrl, 0, 0, true, false);
-
-            if (success) {
-                Serial.println("Image displayed with dithering!");
-                return true;
-            } else {
-                Serial.println("All image drawing attempts failed");
-
-                // Only do HTTP diagnostics if the image completely failed to render
-                Serial.println("Running diagnostics since image failed to render...");
-                Serial.printf("WiFi IP: %s\n", WiFi.localIP().toString().c_str());
-                Serial.printf("WiFi Signal: %d dBm\n", WiFi.RSSI());
-
-                // Test HTTP connection to see what the issue might be
-                HTTPClient http;
-                http.begin(imageUrl);
-                http.setTimeout(10000);
-
-                int httpCode = http.GET();
-                Serial.printf("HTTP Response Code: %d\n", httpCode);
-
-                if (httpCode == HTTP_CODE_OK) {
-                    int contentLength = http.getSize();
-                    String contentType = http.header("Content-Type");
-                    Serial.printf("Content-Length: %d bytes\n", contentLength);
-                    Serial.printf("Content-Type: %s\n", contentType.c_str());
-                } else {
-                    Serial.printf("HTTP error: %d - %s\n", httpCode, http.errorToString(httpCode).c_str());
-                }
-
-                http.end();
-            }
-        }
     }
 
+    // Try without specifying position
+    success = display.drawImage(imageUrl, 0, 0, false, false);
+    if (success) {
+        Serial.println("Image displayed at origin successfully");
+        return true;
+    }
+
+    // Try with dithering
+    success = display.drawImage(imageUrl, 0, 0, true, false);
+    if (success) {
+        Serial.println("Image displayed with dithering");
+        return true;
+    }
+
+    // Only if all attempts fail, run diagnostics
+    Serial.println("All image drawing attempts failed - running diagnostics");
+    Serial.printf("WiFi IP: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("WiFi Signal: %d dBm\n", WiFi.RSSI());
+
+    // Test HTTP connection to see what the issue might be
+    HTTPClient http;
+    http.begin(imageUrl);
+    http.setTimeout(10000);
+
+    int httpCode = http.GET();
+    Serial.printf("HTTP Response Code: %d\n", httpCode);
+
+    if (httpCode == HTTP_CODE_OK) {
+        int contentLength = http.getSize();
+        String contentType = http.header("Content-Type");
+        Serial.printf("Content-Length: %d bytes\n", contentLength);
+        Serial.printf("Content-Type: %s\n", contentType.c_str());
+    } else {
+        Serial.printf("HTTP error: %d - %s\n", httpCode, http.errorToString(httpCode).c_str());
+    }
+
+    http.end();
     return false;
 }
 
@@ -165,27 +154,7 @@ void ImageWidget::showErrorInRegion(const LayoutRegion& region, const char* titl
     Serial.printf("Error display complete\n");
 }
 
-void ImageWidget::showLoadingInRegion(const LayoutRegion& region) {
-    Serial.println("Showing LOADING message in image region");
 
-    // Clear with light gray background
-    display.fillRect(region.x, region.y, region.width, region.height, 6);
-
-    // Draw border
-    display.drawRect(region.x, region.y, region.width, region.height, 0);
-
-    // Center the loading text
-    display.setTextSize(4);
-    display.setTextColor(0);
-
-    String loadingText = "LOADING...";
-    int textWidth = loadingText.length() * 24; // Approximate width for size 4
-    int centerX = region.x + (region.width - textWidth) / 2;
-    int centerY = region.y + (region.height - 32) / 2; // 32 is approximate height for size 4
-
-    display.setCursor(centerX, centerY);
-    display.print(loadingText);
-}
 
 void ImageWidget::showImagePlaceholder(const LayoutRegion& region, const char* title, const char* subtitle) {
     Serial.printf("Showing image placeholder: %s - %s\n", title, subtitle);

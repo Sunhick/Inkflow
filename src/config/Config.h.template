@@ -20,9 +20,10 @@
 #define IMAGE_AREA_WIDTH  (DISPLAY_WIDTH - SIDEBAR_WIDTH)            // 960px
 
 // Weather Configuration (Open-Meteo API - no key required)
-// Update these coordinates to your location
+// Update these coordinates and city name to your location
 #define WEATHER_LATITUDE  "47.6062"  // Your latitude (default: Seattle)
 #define WEATHER_LONGITUDE "-122.3321" // Your longitude (default: Seattle)
+#define WEATHER_CITY      "Seattle"   // City name for display
 #define WEATHER_UNITS     "fahrenheit" // Temperature units: "fahrenheit" or "celsius"
 
 // Hardware Configuration

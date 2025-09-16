@@ -119,21 +119,28 @@ void WeatherWidget::drawWeatherDisplay(const LayoutRegion& region) {
     int labelX = region.x + margin;
     int labelY = region.y + margin;
 
-    // Draw "WEATHER" label
+    // Draw "WEATHER" title
     display.setCursor(labelX, labelY);
     display.setTextSize(2);
     display.setTextColor(0);
     display.setTextWrap(true);
     display.print("WEATHER");
 
+    // Draw city name
+    display.setCursor(labelX, labelY + 25);
+    display.setTextSize(3);
+    display.setTextColor(0);
+    display.setTextWrap(true);
+    display.print(WEATHER_CITY);
+
     if (!currentWeather.isValid) {
-        display.setCursor(labelX, labelY + 40);
+        display.setCursor(labelX, labelY + 55);
         display.setTextSize(2);
         display.setTextColor(0);
         display.setTextWrap(true);
         display.print("No Data");
 
-        display.setCursor(labelX, labelY + 70);
+        display.setCursor(labelX, labelY + 85);
         display.setTextSize(1);
         display.setTextColor(0);
         display.print("Check WiFi");
@@ -141,7 +148,7 @@ void WeatherWidget::drawWeatherDisplay(const LayoutRegion& region) {
     }
 
     // Draw temperature (large)
-    display.setCursor(labelX, labelY + 40);
+    display.setCursor(labelX, labelY + 55);
     display.setTextSize(4);
     display.setTextColor(0);
     display.setTextWrap(true);
@@ -149,14 +156,14 @@ void WeatherWidget::drawWeatherDisplay(const LayoutRegion& region) {
     display.print("F");
 
     // Draw weather description
-    display.setCursor(labelX, labelY + 90);
+    display.setCursor(labelX, labelY + 105);
     display.setTextSize(2);
     display.setTextColor(0);
     display.setTextWrap(true);
     display.print(currentWeather.description);
 
     // Add precipitation probability
-    display.setCursor(labelX, labelY + 120);
+    display.setCursor(labelX, labelY + 135);
     display.setTextSize(2);
     display.setTextColor(0);
     display.setTextWrap(true);
