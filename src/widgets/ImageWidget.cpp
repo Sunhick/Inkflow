@@ -20,30 +20,21 @@ void ImageWidget::render(const LayoutRegion& region) {
     Serial.printf("Image URL: %s\n", imageUrl);
     Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
 
-    // Always clear the region first
-    clearRegion(region);
-
-    // Show immediate visual feedback that we're trying to render
-    showLoadingInRegion(region);
-    display.display(); // Force immediate display update
-    delay(1000); // Give user time to see the loading message
-
     // Attempt to fetch and display image
     if (fetchAndDisplay(region)) {
         consecutiveFailures = 0;
-        Serial.println("✓ Image widget rendered successfully");
+        Serial.println("Image widget rendered successfully");
     } else {
         consecutiveFailures++;
-        Serial.printf("✗ Image widget render failed (attempt %d)\n", consecutiveFailures);
+        Serial.printf("Image widget render failed (attempt %d)\n", consecutiveFailures);
 
-        // Show error immediately, don't wait for 3 failures
+        // Show error in the image region
         String errorDetails = "URL: ";
         errorDetails += imageUrl;
         if (WiFi.status() != WL_CONNECTED) {
             errorDetails = "WiFi disconnected";
         }
         showErrorInRegion(region, "IMAGE ERROR", "Failed to load image", errorDetails.c_str());
-        display.display(); // Force display update for error message
     }
 
     lastImageUpdate = millis();
@@ -58,47 +49,65 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
 
     Serial.printf("Fetching image from: %s\n", imageUrl);
 
-    // First, show a "LOADING..." message
-    showLoadingInRegion(region);
-    display.display(); // Force display update
+    // Clear the entire display first (like the old working code)
+    display.clearDisplay();
 
-    HTTPClient http;
-    http.begin(imageUrl);
-    http.setTimeout(30000); // 30 second timeout
+    // Use the simple approach that worked in your old code - just try to draw the image
+    Serial.println("Attempting to draw image with Inkplate library...");
+    bool success = display.drawImage(imageUrl, region.x, region.y, false, false);
 
-    int httpCode = http.GET();
-    Serial.printf("HTTP Response Code: %d\n", httpCode);
+    if (success) {
+        Serial.println("Image downloaded and displayed successfully");
+        return true;
+    } else {
+        Serial.println("Inkplate drawImage failed at region position");
 
-    if (httpCode == HTTP_CODE_OK) {
-        int contentLength = http.getSize();
-        Serial.printf("Image size: %d bytes\n", contentLength);
+        // Try without specifying position (like the old code might have done)
+        Serial.println("Trying to draw image at origin (0,0)...");
+        success = display.drawImage(imageUrl, 0, 0, false, false);
 
-        if (contentLength > 0) {
-            // Clear the image region
-            clearRegion(region);
+        if (success) {
+            Serial.println("Image displayed at origin successfully");
+            return true;
+        } else {
+            Serial.println("Image drawing failed - trying with dithering...");
 
-            // Try the Inkplate drawImage function
-            Serial.println("Attempting to draw image with Inkplate library...");
-            bool success = display.drawImage(imageUrl, region.x, region.y, false, false);
+            // Try with different parameters
+            success = display.drawImage(imageUrl, 0, 0, true, false);
 
             if (success) {
-                Serial.println("✓ Image downloaded and displayed successfully");
-                display.display(); // Force display update
-                http.end();
+                Serial.println("Image displayed with dithering!");
                 return true;
             } else {
-                Serial.println("✗ Inkplate drawImage failed, showing placeholder");
-                showImagePlaceholder(region, "IMAGE LOADED", "But display failed");
-                display.display(); // Force display update
+                Serial.println("All image drawing attempts failed");
+
+                // Only do HTTP diagnostics if the image completely failed to render
+                Serial.println("Running diagnostics since image failed to render...");
+                Serial.printf("WiFi IP: %s\n", WiFi.localIP().toString().c_str());
+                Serial.printf("WiFi Signal: %d dBm\n", WiFi.RSSI());
+
+                // Test HTTP connection to see what the issue might be
+                HTTPClient http;
+                http.begin(imageUrl);
+                http.setTimeout(10000);
+
+                int httpCode = http.GET();
+                Serial.printf("HTTP Response Code: %d\n", httpCode);
+
+                if (httpCode == HTTP_CODE_OK) {
+                    int contentLength = http.getSize();
+                    String contentType = http.header("Content-Type");
+                    Serial.printf("Content-Length: %d bytes\n", contentLength);
+                    Serial.printf("Content-Type: %s\n", contentType.c_str());
+                } else {
+                    Serial.printf("HTTP error: %d - %s\n", httpCode, http.errorToString(httpCode).c_str());
+                }
+
+                http.end();
             }
-        } else {
-            Serial.println("Invalid content length");
         }
-    } else {
-        Serial.printf("HTTP error: %d\n", httpCode);
     }
 
-    http.end();
     return false;
 }
 
