@@ -1,4 +1,5 @@
 #include "BatteryManager.h"
+#include "Config.h"
 
 BatteryManager::BatteryManager(Inkplate &display)
     : display(display), lastBatteryUpdate(0) {}
@@ -57,59 +58,57 @@ void BatteryManager::drawBatteryIndicator() {
 
     Serial.printf("Drawing battery indicator: %d%%\n", percentage);
 
-    int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Calculate 8% bottom bar dimensions (increased from 5% for better visibility)
-    int bottomBarHeight = displayHeight * 0.08; // 8% of display height
-    int bottomBarY = displayHeight - bottomBarHeight;
+    // Position battery in the bottom third of the left sidebar
+    int sidebarHeight = displayHeight / 3; // Each section gets 1/3 of height
+    int batteryY = displayHeight - sidebarHeight; // Bottom third
+    int batteryX = 10; // Left margin
 
-    Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
-    Serial.printf("Bottom bar: height=%d, y=%d\n", bottomBarHeight, bottomBarY);
+    Serial.printf("Battery position in sidebar: x=%d, y=%d, height=%d\n", batteryX, batteryY, sidebarHeight);
 
-    // Clear the entire battery area (rightmost 30% of bottom bar) with BLACK background
-    int batteryAreaX = displayWidth * 7 / 10; // Start at 70% from left
-    display.fillRect(batteryAreaX, bottomBarY, displayWidth * 3 / 10, bottomBarHeight, BLACK);
+    // Clear the battery area in sidebar
+    clearBatteryArea();
 
-    // Position battery display in rightmost 30% of bottom bar - RIGHT ALIGNED
-    int textSize = 2; // Larger text for better visibility
-    int textHeight = textSize * 8; // Approximate text height
-    int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
+    // Draw "BATTERY" label
+    display.setCursor(batteryX, batteryY + 10);
+    display.setTextSize(2);
+    display.setTextColor(0);
+    display.print("BATTERY");
 
-    // Calculate text width for right alignment
-    int iconWidth = 20;
-    int iconHeight = 12;
-    int textWidth = 60; // Approximate width for "100%" text
-    int totalWidth = textWidth + iconWidth + 5; // Text + icon + small gap
-    int rightMargin = 10;
-
-    // Right-align: start from right edge minus total width and margin
-    int textX = displayWidth - totalWidth - rightMargin;
-    int iconX = textX + textWidth + 5; // Icon after text with small gap
-    int iconY = textY + 2;
-
-    Serial.printf("Battery position (right-aligned): text=(%d,%d), icon=(%d,%d)\n", textX, textY, iconX, iconY);
-
-    // Draw percentage text in WHITE on BLACK background - RIGHT ALIGNED
-    display.setCursor(textX, textY);
-    display.setTextSize(textSize);
-    display.setTextColor(WHITE, BLACK); // Explicitly set WHITE text on BLACK background
+    // Draw percentage text
+    display.setCursor(batteryX, batteryY + 40);
+    display.setTextSize(3); // Larger text for sidebar
+    display.setTextColor(0);
     display.printf("%d%%", percentage);
 
-    // Draw battery icon next to percentage in WHITE
+    // Draw battery icon below percentage
+    int iconWidth = 40;
+    int iconHeight = 20;
+    int iconX = batteryX;
+    int iconY = batteryY + 80;
 
-    // Battery outline in WHITE
-    display.drawRect(iconX, iconY, iconWidth, iconHeight, WHITE);
-    // Battery tip in WHITE
-    display.fillRect(iconX + iconWidth, iconY + 2, 2, iconHeight - 4, WHITE);
+    // Battery outline in black
+    display.drawRect(iconX, iconY, iconWidth, iconHeight, 0);
+    display.drawRect(iconX - 1, iconY - 1, iconWidth + 2, iconHeight + 2, 0); // Thicker outline
 
-    // Fill battery based on percentage in WHITE
-    int fillWidth = ((iconWidth - 2) * percentage) / 100;
+    // Battery tip in black
+    display.fillRect(iconX + iconWidth, iconY + 4, 4, iconHeight - 8, 0);
+
+    // Fill battery based on percentage in black
+    int fillWidth = ((iconWidth - 4) * percentage) / 100;
     if (fillWidth > 0) {
-        display.fillRect(iconX + 1, iconY + 1, fillWidth, iconHeight - 2, WHITE);
+        display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4, 0);
     }
 
-    Serial.println("Battery drawn to buffer");
+    // Draw voltage info
+    float voltage = getBatteryVoltage();
+    display.setCursor(batteryX, batteryY + 110);
+    display.setTextSize(1);
+    display.setTextColor(0);
+    display.printf("%.2fV", voltage);
+
+    Serial.println("Battery drawn to sidebar buffer");
 }
 
 void BatteryManager::drawBatteryPercentage(int percentage) {
@@ -121,7 +120,11 @@ void BatteryManager::drawBatteryIcon(int x, int y, int percentage) {
 }
 
 void BatteryManager::clearBatteryArea() {
-    // This method is now integrated into drawBatteryIndicator
+    int areaX, areaY, areaWidth, areaHeight;
+    getBatteryArea(areaX, areaY, areaWidth, areaHeight);
+
+    // Clear with white background
+    display.fillRect(areaX, areaY, areaWidth, areaHeight, 7);
 }
 
 void BatteryManager::drawBatteryToBuffer() {
@@ -130,14 +133,13 @@ void BatteryManager::drawBatteryToBuffer() {
 }
 
 void BatteryManager::getBatteryArea(int &x, int &y, int &width, int &height) {
-    int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Battery area is rightmost 30% of 8% bottom bar (70% to 100%)
-    int bottomBarHeight = displayHeight * 0.08;
+    // Battery area is bottom third of left sidebar, but leave space for separator line
+    int sidebarHeight = displayHeight / 3;
 
-    x = displayWidth * 7 / 10; // Start at 70%
-    y = displayHeight - bottomBarHeight;
-    width = displayWidth * 3 / 10; // 30% width
-    height = bottomBarHeight;
+    x = 0;
+    y = displayHeight - sidebarHeight + 2; // Start after the separator line
+    width = SIDEBAR_WIDTH;
+    height = sidebarHeight - 2; // Leave space for separator line above
 }

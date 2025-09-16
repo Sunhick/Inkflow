@@ -130,43 +130,44 @@ String WeatherManager::getWeatherDescription(int weatherCode) {
 void WeatherManager::drawWeatherDisplay() {
     Serial.println("Drawing weather display...");
 
-    int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Calculate 8% bottom bar dimensions (increased for better visibility)
-    int bottomBarHeight = displayHeight * 0.08;
-    int bottomBarY = displayHeight - bottomBarHeight;
+    // Position weather in the middle third of the left sidebar
+    int sidebarHeight = displayHeight / 3; // Each section gets 1/3 of height
+    int weatherY = sidebarHeight + 10; // Middle third with margin
+    int weatherX = 10; // Left margin
 
-    // Clear the weather area (center portion of bottom bar)
+    Serial.printf("Weather position in sidebar: x=%d, y=%d, height=%d\n", weatherX, weatherY, sidebarHeight);
+
+    // Clear the weather area in sidebar
     clearWeatherArea();
+
+    // Draw "WEATHER" label
+    display.setCursor(weatherX, weatherY);
+    display.setTextSize(2);
+    display.setTextColor(0);
+    display.print("WEATHER");
 
     if (!currentWeather.isValid) {
         Serial.println("Weather data not valid, showing error");
 
-        int textSize = 2;
-        int textHeight = textSize * 8;
-        int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
-        int weatherX = displayWidth / 2 + 5; // Start of weather section (50%) + small margin
-
-        display.setCursor(weatherX, textY);
-        display.setTextSize(textSize);
-        display.setTextColor(WHITE, BLACK);
-        display.print("Weather N/A");
+        display.setCursor(weatherX, weatherY + 40);
+        display.setTextSize(2);
+        display.setTextColor(0);
+        display.print("N/A");
         return;
     }
 
-    // Position weather display in middle 20% section of bottom bar
-    int textSize = 3; // Match battery font size
-    int textHeight = textSize * 8;
-    int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
-    int weatherX = displayWidth / 2 + 5; // Start of weather section (50%) + small margin
+    // Draw temperature (large)
+    display.setCursor(weatherX, weatherY + 40);
+    display.setTextSize(4);
+    display.setTextColor(0);
+    display.printf("%d°F", (int)currentWeather.temperature);
 
-    Serial.printf("Weather position: (%d,%d)\n", weatherX, textY);
-
-    // Draw weather info: "67 F (partly cloudy)" format with two-word description in parentheses
-    display.setCursor(weatherX, textY);
-    display.setTextSize(textSize);
-    display.setTextColor(WHITE, BLACK);
+    // Draw weather description
+    display.setCursor(weatherX, weatherY + 90);
+    display.setTextSize(2);
+    display.setTextColor(0);
 
     // Get first two words of description for better readability
     String twoWordDesc = currentWeather.description;
@@ -178,34 +179,35 @@ void WeatherManager::drawWeatherDisplay() {
         }
     }
 
-    // Convert to lowercase for better appearance in parentheses
-    twoWordDesc.toLowerCase();
+    display.print(twoWordDesc);
 
-    String weatherStr = String((int)currentWeather.temperature) + " F (" + twoWordDesc + ")";
-    display.print(weatherStr);
+    // Draw separator line below weather section
+    int sectionHeight = displayHeight / 3;
+    int line2Y = (sectionHeight * 2) - 2;
+    display.drawLine(5, line2Y, SIDEBAR_WIDTH - 5, line2Y, 0);
+    display.drawLine(5, line2Y + 1, SIDEBAR_WIDTH - 5, line2Y + 1, 0);
 
-    Serial.println("Weather drawn to buffer");
+    Serial.println("Weather drawn to sidebar buffer");
 }
 
 void WeatherManager::clearWeatherArea() {
     int areaX, areaY, areaWidth, areaHeight;
     getWeatherArea(areaX, areaY, areaWidth, areaHeight);
 
-    // Clear with black background
-    display.fillRect(areaX, areaY, areaWidth, areaHeight, BLACK);
+    // Clear with white background
+    display.fillRect(areaX, areaY, areaWidth, areaHeight, 7);
 }
 
 void WeatherManager::getWeatherArea(int &x, int &y, int &width, int &height) {
-    int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Weather area is middle 20% of 8% bottom bar (50% to 70%)
-    int bottomBarHeight = displayHeight * 0.08;
+    // Weather area is middle third of left sidebar, but leave space for separator lines
+    int sidebarHeight = displayHeight / 3;
 
-    x = displayWidth / 2;           // Start at 50% from left
-    y = displayHeight - bottomBarHeight;
-    width = displayWidth / 5;       // Take 20% of width (50% to 70%)
-    height = bottomBarHeight;
+    x = 0;
+    y = sidebarHeight + 2; // Start after the top separator line
+    width = SIDEBAR_WIDTH;
+    height = sidebarHeight - 4; // Leave space for both separator lines
 }
 
 void WeatherManager::drawWeatherToBuffer() {
@@ -216,20 +218,21 @@ void WeatherManager::drawWeatherToBuffer() {
         // If still not valid, show error message
         if (!currentWeather.isValid) {
             Serial.println("Weather fetch failed, showing error message");
-            int displayWidth = display.width();
             int displayHeight = display.height();
-
-            int bottomBarHeight = displayHeight * 0.08;
-            int bottomBarY = displayHeight - bottomBarHeight;
-            int textHeight = 2 * 8;
-            int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
-            int weatherX = displayWidth / 4;
+            int sidebarHeight = displayHeight / 3;
+            int weatherY = sidebarHeight + 10;
+            int weatherX = 10;
 
             clearWeatherArea();
-            display.setCursor(weatherX, textY);
+            display.setCursor(weatherX, weatherY);
             display.setTextSize(2);
-            display.setTextColor(WHITE, BLACK);
-            display.print("Weather N/A");
+            display.setTextColor(0);
+            display.print("WEATHER");
+
+            display.setCursor(weatherX, weatherY + 40);
+            display.setTextSize(2);
+            display.setTextColor(0);
+            display.print("N/A");
             lastWeatherUpdate = millis();
             return;
         }

@@ -72,11 +72,21 @@ void ImageUpdater::performInitialSetup() {
             weatherManager.drawWeatherToBuffer();
             displayManager.update(); // Single display update
         } else {
-            displayManager.showError("Image Error", "Failed to load initial image");
+            // Show error in photo area and draw sidebar
+            imageFetcher.showErrorInPhotoArea("IMAGE ERROR", "Failed to load initial image");
+            batteryManager.drawBatteryToBuffer();
+            timeManager.drawTimeToBuffer();
+            weatherManager.drawWeatherToBuffer();
+            displayManager.update();
         }
     } else {
-        displayManager.showError("WiFi Error", "Failed to connect to network",
-                                wifiManager.getStatusString().c_str());
+        // Show error in photo area and draw sidebar
+        imageFetcher.showErrorInPhotoArea("WIFI ERROR", "Failed to connect to network",
+                                        wifiManager.getStatusString().c_str());
+        batteryManager.drawBatteryToBuffer();
+        timeManager.drawTimeToBuffer();
+        weatherManager.drawWeatherToBuffer();
+        displayManager.update();
     }
 
     lastUpdate = millis();
@@ -102,8 +112,13 @@ bool ImageUpdater::ensureConnectivity() {
         displayManager.showStatus("Reconnecting WiFi...");
 
         if (!wifiManager.connect()) {
-            displayManager.showError("Connection Lost", "WiFi reconnection failed",
-                                   wifiManager.getStatusString().c_str());
+            // Show error in photo area and draw sidebar
+            imageFetcher.showErrorInPhotoArea("CONNECTION LOST", "WiFi reconnection failed",
+                                            wifiManager.getStatusString().c_str());
+            batteryManager.drawBatteryToBuffer();
+            timeManager.drawTimeToBuffer();
+            weatherManager.drawWeatherToBuffer();
+            displayManager.update();
             return false;
         } else {
             // WiFi reconnected, resync time and weather if needed
@@ -130,13 +145,16 @@ void ImageUpdater::processImageUpdate() {
         Serial.printf("Image update failed (attempt %d)\n", imageFetcher.getConsecutiveFailures());
 
         if (imageFetcher.getConsecutiveFailures() >= 3) {
-            displayManager.showImageError(
-                "Image URL",
-                imageFetcher.getConsecutiveFailures(),
-                refreshInterval / 1000,
+            // Show diagnostics in photo area instead of full screen error
+            imageFetcher.showDiagnosticsInPhotoArea(
                 wifiManager.getIPAddress().c_str(),
                 wifiManager.getSignalStrength()
             );
+            // Still draw the sidebar status
+            batteryManager.drawBatteryToBuffer();
+            timeManager.drawTimeToBuffer();
+            weatherManager.drawWeatherToBuffer();
+            displayManager.update();
         }
     }
 }

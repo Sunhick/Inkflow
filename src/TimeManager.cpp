@@ -1,4 +1,5 @@
 #include "TimeManager.h"
+#include "Config.h"
 
 const char* TimeManager::NTP_SERVER = "pool.ntp.org";
 
@@ -114,32 +115,23 @@ void TimeManager::drawTimeDisplay() {
         return;
     }
 
-    int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Calculate 8% bottom bar dimensions (increased from 5% for better visibility)
-    int bottomBarHeight = displayHeight * 0.08; // 8% of display height
-    int bottomBarY = displayHeight - bottomBarHeight;
+    // Position time in the top third of the left sidebar
+    int sidebarHeight = displayHeight / 3; // Each section gets 1/3 of height
+    int timeY = 10; // Top third with margin
+    int timeX = 10; // Left margin
 
-    Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
-    Serial.printf("Bottom bar: height=%d, y=%d\n", bottomBarHeight, bottomBarY);
+    Serial.printf("Time position in sidebar: x=%d, y=%d, height=%d\n", timeX, timeY, sidebarHeight);
 
-    // Clear the time area (left half of bottom bar) with WHITE background
+    // Clear the time area in sidebar
     clearTimeArea();
 
-    // Draw thick separator line above bottom bar (only draw once from time manager)
-    display.drawLine(0, bottomBarY - 1, displayWidth, bottomBarY - 1, WHITE);
-    display.drawLine(0, bottomBarY - 2, displayWidth, bottomBarY - 2, WHITE);
-    display.drawLine(0, bottomBarY - 3, displayWidth, bottomBarY - 3, WHITE);
-
-    // Draw vertical separators between the three sections
-    int timeWeatherSeparator = displayWidth / 2; // 50% mark (time | weather)
-    int weatherBatterySeparator = displayWidth * 7 / 10; // 70% mark (weather | battery)
-
-    // Separator between time and weather sections
-    display.drawLine(timeWeatherSeparator, bottomBarY, timeWeatherSeparator, bottomBarY + bottomBarHeight, WHITE);
-    // Separator between weather and battery sections
-    display.drawLine(weatherBatterySeparator, bottomBarY, weatherBatterySeparator, bottomBarY + bottomBarHeight, WHITE);
+    // Draw "DATE & TIME" label
+    display.setCursor(timeX, timeY);
+    display.setTextSize(2);
+    display.setTextColor(0);
+    display.print("DATE & TIME");
 
     // Get formatted strings
     String dateStr = getFormattedDate();
@@ -148,46 +140,59 @@ void TimeManager::drawTimeDisplay() {
 
     Serial.printf("Date: %s, Time: %s, Day: %s\n", dateStr.c_str(), timeStr.c_str(), dayStr.c_str());
 
-    // Position time display in left half of bottom bar - LEFT ALIGNED
-    int textSize = 3; // Match battery font size
-    int lineHeight = textSize * 8; // Height of one line of text
-    int timeX = 5; // Left margin for left alignment
+    // Draw day of week
+    display.setCursor(timeX, timeY + 30);
+    display.setTextSize(2);
+    display.setTextColor(0);
+    dayStr.toUpperCase();
+    display.print(dayStr);
 
-    // Single line format: "September 14, 2026 11:24PM (SUN)"
-    int textY = bottomBarY + (bottomBarHeight - lineHeight) / 2; // Center vertically
+    // Draw date
+    display.setCursor(timeX, timeY + 60);
+    display.setTextSize(2);
+    display.setTextColor(0);
+    display.print(dateStr);
 
-    Serial.printf("Time position: (%d,%d)\n", timeX, textY);
+    // Draw time (larger)
+    display.setCursor(timeX, timeY + 90);
+    display.setTextSize(3);
+    display.setTextColor(0);
+    display.print(timeStr);
 
-    display.setTextSize(textSize);
-    display.setTextColor(WHITE, BLACK); // Explicitly set WHITE text on BLACK background
+    // Draw horizontal separator lines between sections
+    int sectionHeight = displayHeight / 3;
 
-    // Full format: "September 14, 2026 11:24PM (SUN)"
-    display.setCursor(timeX, textY);
-    String fullDateTime = getFullDateTime();
-    display.print(fullDateTime);
+    // Line between time and weather sections
+    int line1Y = sectionHeight - 2;
+    display.drawLine(5, line1Y, SIDEBAR_WIDTH - 5, line1Y, 0);
+    display.drawLine(5, line1Y + 1, SIDEBAR_WIDTH - 5, line1Y + 1, 0);
 
-    Serial.println("Time drawn to buffer");
+    // Line between weather and battery sections
+    int line2Y = (sectionHeight * 2) - 2;
+    display.drawLine(5, line2Y, SIDEBAR_WIDTH - 5, line2Y, 0);
+    display.drawLine(5, line2Y + 1, SIDEBAR_WIDTH - 5, line2Y + 1, 0);
+
+    Serial.println("Time drawn to sidebar buffer");
 }
 
 void TimeManager::clearTimeArea() {
     int areaX, areaY, areaWidth, areaHeight;
     getTimeArea(areaX, areaY, areaWidth, areaHeight);
 
-    // Clear with black background
-    display.fillRect(areaX, areaY, areaWidth, areaHeight, BLACK);
+    // Clear with white background
+    display.fillRect(areaX, areaY, areaWidth, areaHeight, 7);
 }
 
 void TimeManager::getTimeArea(int &x, int &y, int &width, int &height) {
-    int displayWidth = display.width();
     int displayHeight = display.height();
 
-    // Time area is left 50% of 8% bottom bar (0% to 50%)
-    int bottomBarHeight = displayHeight * 0.08;
+    // Time area is top third of left sidebar, but leave space for separator line
+    int sidebarHeight = displayHeight / 3;
 
     x = 0;
-    y = displayHeight - bottomBarHeight;
-    width = displayWidth / 2; // 50% width
-    height = bottomBarHeight;
+    y = 0; // Top third
+    width = SIDEBAR_WIDTH;
+    height = sidebarHeight - 2; // Leave space for separator line below
 }
 
 String TimeManager::getFormattedDate() {
@@ -254,20 +259,20 @@ void TimeManager::drawTimeToBuffer() {
         // If still not initialized, show error message
         if (!timeInitialized) {
             Serial.println("NTP sync failed, showing error message");
-            int displayWidth = display.width();
             int displayHeight = display.height();
-
-            // Calculate 8% bottom bar position
-            int bottomBarHeight = displayHeight * 0.08;
-            int bottomBarY = displayHeight - bottomBarHeight;
-            int textHeight = 1 * 8; // text size 1
-            int textY = bottomBarY + (bottomBarHeight - textHeight) / 2;
-            int timeX = 5;
+            int sidebarHeight = displayHeight / 3;
+            int timeY = 10;
+            int timeX = 10;
 
             clearTimeArea();
-            display.setCursor(timeX, textY);
+            display.setCursor(timeX, timeY);
+            display.setTextSize(2);
+            display.setTextColor(0);
+            display.print("DATE & TIME");
+
+            display.setCursor(timeX, timeY + 40);
             display.setTextSize(1);
-            display.setTextColor(WHITE, BLACK); // Explicitly set WHITE text on BLACK background
+            display.setTextColor(0);
             display.print("Time Sync Failed");
             lastTimeUpdate = millis();
             return;

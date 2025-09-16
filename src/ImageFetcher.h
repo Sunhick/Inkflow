@@ -10,6 +10,8 @@ public:
     bool fetchAndDisplay();
     int getConsecutiveFailures() const;
     void resetFailureCount();
+    void showDiagnosticsInPhotoArea(const char* wifiIP, int signalStrength);
+    void showErrorInPhotoArea(const char* title, const char* message, const char* details = nullptr);
 
 private:
     Inkplate &display;
