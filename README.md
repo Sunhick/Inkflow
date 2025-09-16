@@ -1,6 +1,6 @@
-# Inkplate Image Renderer with Weather
+# Inkplate Image Display with Weather
 
-A PlatformIO project for displaying images from a web URL on Inkplate e-paper displays with comprehensive status information. The project fetches images over WiFi and displays them with weather, battery, and time information in a clean status bar layout.
+A PlatformIO project for displaying images from a web URL on Inkplate e-paper displays with comprehensive status information. The project fetches images over WiFi and displays them with weather, battery, and time information in a clean left sidebar layout.
 
 ## Features
 
@@ -12,8 +12,8 @@ A PlatformIO project for displaying images from a web URL on Inkplate e-paper di
 - Support for Inkplate 10 (3-bit grayscale mode)
 - Battery monitoring with percentage display and charging icon
 - Time display with automatic updates
-- **Three-section sidebar layout** (Time | Weather | Battery)
-- Modular architecture with Layout Manager orchestrating all components
+- **Three-section left sidebar layout** (Time | Weather | Battery)
+- Modular widget-based architecture with Layout Manager
 - Error handling and status messages
 
 ## Architecture
@@ -30,13 +30,13 @@ main.cpp
         │   ├── Weather Region (middle sidebar section)
         │   └── Battery Region (bottom sidebar section)
         │
-        └── Widget Managers:
+        └── Widgets:
             ├── DisplayManager (Inkplate display control)
             ├── WiFiManager (connectivity management)
-            ├── ImageFetcher (image widget)
-            ├── BatteryManager (battery status widget)
-            ├── TimeManager (date/time widget)
-            └── WeatherManager (weather data widget)
+            ├── ImageWidget (image display)
+            ├── BatteryWidget (battery status)
+            ├── TimeWidget (date/time display)
+            └── WeatherWidget (weather data)
 ```
 
 **Layout Manager Responsibilities:**
@@ -78,110 +78,48 @@ make build
 make upload
 ```
 
-#### Option B: Command-line Configuration
-Configuration is done at build time using command-line parameters. The Makefile automatically generates a `src/config/Config.h` file with your settings:
+#### Configuration Parameters
 
-**Step-by-step workflow:**
+Edit `src/config/Config.h` with your settings:
 
-```bash
-# 1. Generate configuration file (weather works automatically - no API key needed!)
-make generate-config WIFI_SSID='YourNetwork' WIFI_PASSWORD='YourPassword' SERVER_URL='http://yourserver.com/image.jpg'
+- **WIFI_SSID** - Your WiFi network name
+- **WIFI_PASSWORD** - Your WiFi password
+- **SERVER_URL** - Direct URL to a JPEG image
+- **WEATHER_LATITUDE** - Your latitude (default: Seattle)
+- **WEATHER_LONGITUDE** - Your longitude (default: Seattle)
+- **WEATHER_CITY** - City name for display
+- **WEATHER_UNITS** - "fahrenheit" or "celsius"
 
-# 2. Build the firmware
-make build
 
-# 3. Upload to device
-make upload
-```
-
-**Quick deployment (all steps in one):**
-
-```bash
-# Complete workflow with weather and custom refresh interval (5 minutes)
-make deploy WIFI_SSID='YourNetwork' WIFI_PASSWORD='YourPassword' SERVER_URL='http://yourserver.com/image.jpg' REFRESH_MS=300000
-```
-
-**Development workflow:**
-
-```bash
-# Generate config once
-make generate-config WIFI_SSID='TestNet' WIFI_PASSWORD='test123' SERVER_URL='http://example.com/test.jpg'
-
-# Then iterate quickly
-make build    # Just compile
-make upload   # Just flash (no rebuild)
-make monitor  # Watch serial output
-```
-
-Or using PlatformIO directly with build flags:
-
-```bash
-# Build with configuration
-pio run --environment inkplate10 --project-option='build_flags=-DWIFI_SSID="YourNetwork" -DWIFI_PASSWORD="YourPassword" -DSERVER_URL="http://yourserver.com/image.jpg" -DREFRESH_MS=60000'
-
-# Upload
-pio run --target upload --environment inkplate10 --project-option='build_flags=-DWIFI_SSID="YourNetwork" -DWIFI_PASSWORD="YourPassword" -DSERVER_URL="http://yourserver.com/image.jpg" -DREFRESH_MS=60000'
-```
-
-## Architecture
-
-The project follows SOLID principles with separate classes for different responsibilities:
-
-### Core Classes
-
-- **`ImageUpdater`** - Main orchestrator that coordinates all components
-- **`WiFiManager`** - Handles all WiFi connectivity (Single Responsibility)
-- **`DisplayManager`** - Manages all display operations (Single Responsibility)
-- **`ImageFetcher`** - Handles image downloading and display (Single Responsibility)
-- **`WeatherManager`** - Manages weather API calls and data parsing (Single Responsibility)
-- **`BatteryManager`** - Handles battery monitoring and display (Single Responsibility)
-- **`TimeManager`** - Manages time display and formatting (Single Responsibility)
-
-### SOLID Principles Applied
-
-1. **Single Responsibility Principle (SRP)**
-   - Each class has one reason to change
-   - WiFiManager only handles network connectivity
-   - DisplayManager only handles screen operations
-   - ImageFetcher only handles image operations
-
-2. **Open/Closed Principle (OCP)**
-   - Classes are open for extension, closed for modification
-   - Easy to add new display types or image sources
-
-3. **Liskov Substitution Principle (LSP)**
-   - Components can be easily swapped with compatible implementations
-
-4. **Interface Segregation Principle (ISP)**
-   - Classes depend only on methods they actually use
-   - Clean, focused interfaces
-
-5. **Dependency Inversion Principle (DIP)**
-   - High-level ImageUpdater depends on abstractions
-   - Easy to mock components for testing
 
 ## Project Structure
 
 ```
-├── Makefile              # Build automation with config parameters
-├── platformio.ini        # PlatformIO configuration
+├── Makefile                    # Build automation
+├── platformio.ini              # PlatformIO configuration
 ├── src/
-│   ├── main.cpp         # Main application entry point
-│   ├── ImageUpdater.h   # Main orchestrator class
-│   ├── ImageUpdater.cpp # Main orchestrator implementation
-│   ├── WiFiManager.h    # WiFi connectivity management
-│   ├── WiFiManager.cpp  # WiFi implementation
-│   ├── DisplayManager.h # Display operations
-│   ├── DisplayManager.cpp # Display implementation
-│   ├── ImageFetcher.h   # Image downloading
-│   ├── ImageFetcher.cpp # Image fetching implementation
-│   ├── WeatherManager.h # Weather API management
-│   ├── WeatherManager.cpp # Weather implementation
-│   ├── BatteryManager.h # Battery monitoring
-│   ├── BatteryManager.cpp # Battery monitoring implementation
-│   ├── TimeManager.h    # Time display management
-│   ├── TimeManager.cpp  # Time implementation
-│   └── Config.h         # Auto-generated configuration (excluded from git)
+│   ├── main.cpp               # Main application entry point
+│   ├── config/
+│   │   ├── Config.h           # Configuration file (copy from template)
+│   │   └── Config.h.template  # Configuration template
+│   ├── core/
+│   │   └── Widget.h           # Base widget class
+│   ├── managers/
+│   │   ├── LayoutManager.h    # Main layout orchestrator
+│   │   ├── LayoutManager.cpp  # Layout management implementation
+│   │   ├── DisplayManager.h   # Display operations
+│   │   ├── DisplayManager.cpp # Display implementation
+│   │   ├── WiFiManager.h      # WiFi connectivity
+│   │   └── WiFiManager.cpp    # WiFi implementation
+│   └── widgets/
+│       ├── ImageWidget.h      # Image display widget
+│       ├── ImageWidget.cpp    # Image widget implementation
+│       ├── TimeWidget.h       # Time display widget
+│       ├── TimeWidget.cpp     # Time widget implementation
+│       ├── WeatherWidget.h    # Weather display widget
+│       ├── WeatherWidget.cpp  # Weather widget implementation
+│       ├── BatteryWidget.h    # Battery display widget
+│       └── BatteryWidget.cpp  # Battery widget implementation
 └── README.md
 ```
 
@@ -189,66 +127,81 @@ The project follows SOLID principles with separate classes for different respons
 
 - `make build` - Compile the project
 - `make upload` - Upload firmware to device
-- `make flash` - Build and upload in one step
 - `make monitor` - Start serial monitor
-- `make upload-monitor` - Upload and start monitoring
 - `make clean` - Clean build files
-- `make update` - Update libraries
-- `make devices` - List connected devices
-- `make help` - Show all available commands
 
-## Configuration Parameters
 
-Configuration is done at build time using command-line parameters:
-
-### Required Parameters
-- `WIFI_SSID` - Your WiFi network name
-- `WIFI_PASSWORD` - Your WiFi password
-- `SERVER_URL` - Direct URL to a JPEG image
-
-### Optional Parameters
-- `REFRESH_MS` - Image refresh interval in milliseconds (default: 3600000 = 1 hour)
-- `WEATHER_LATITUDE` - Your latitude (default: "37.7749" = San Francisco)
-- `WEATHER_LONGITUDE` - Your longitude (default: "-122.4194" = San Francisco)
-- `WEATHER_UNITS` - Temperature units: "fahrenheit" or "celsius" (default: "fahrenheit")
-
-### Example Configurations
-
-```bash
-# Basic setup with weather (1 hour refresh) - San Francisco by default
-make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/weather.jpg'
-
-# Custom location (London) and units (celsius)
-make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/image.jpg' WEATHER_LATITUDE='51.5074' WEATHER_LONGITUDE='-0.1278' WEATHER_UNITS='celsius'
-
-# Quick development build (30 seconds refresh)
-make flash WIFI_SSID='HomeNetwork' WIFI_PASSWORD='mypassword' SERVER_URL='http://myserver.com/test.jpg' REFRESH_MS=30000
-```
 
 ## Display Layout
 
-The display features a clean layout with a comprehensive status bar:
+The display uses a **sidebar layout** with the main image taking up 80% of the width and a 20% sidebar containing status information:
 
 ```
-┌─────────────────────────────────────────┐
-│                                         │
-│            Main Image Area              │
-│              (95% height)               │
-│                                         │
-├─────────────────────────────────────────┤
-│ 2:30 PM │ 72°F Sunny │      85% ⚡     │ ← Status Bar (5%)
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                           Main Image Area                                    │
+│                             (80% width)                                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Status Bar Sections
-- **Left (25%)**: Current time (e.g., "2:30 PM")
-- **Center (25%)**: Weather info (e.g., "72°F Sunny")
-- **Right (50%)**: Battery percentage with charging icon (e.g., "85% ⚡")
+**With Left Sidebar (20% width):**
+
+```
+┌──────────────┬─────────────────────────────────────────────────────────────┐
+│ DATE & TIME  │                                                             │
+│ FRIDAY       │                                                             │
+│ Sep 15, 2025 │                                                             │
+│ 2:30 PM      │                                                             │
+├──────────────┤                     Main Image Area                         │
+│ WEATHER      │                       (80% width)                           │
+│ Seattle      │                                                             │
+│ 72F          │                                                             │
+│ Partly Cloudy│                                                             │
+│ Rain: 15%    │                                                             │
+├──────────────┤                                                             │
+│ BATTERY      │                                                             │
+│ 85%          │                                                             │
+│ [████████░░] │                                                             │
+│ 3.85V        │                                                             │
+└──────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+### Left Sidebar Sections (20% width, divided into 3 equal parts)
+
+#### **Time Section (Top 1/3)**
+- **DATE & TIME** (title)
+- **FRIDAY** (day of week)
+- **September 15, 2025** (full date)
+- **2:30 PM** (current time)
+
+#### **Weather Section (Middle 1/3)**
+- **WEATHER** (title)
+- **Seattle** (city name, large text)
+- **72F** (temperature, large text)
+- **Partly Cloudy** (weather description)
+- **Rain: 15%** (precipitation probability)
+
+#### **Battery Section (Bottom 1/3)**
+- **BATTERY** (title)
+- **85%** (percentage, large text)
+- **[████████░░]** (visual battery icon)
+- **3.85V** (actual voltage)
 
 ### Update Intervals
-- **Images**: Every 1 hour (configurable via REFRESH_MS)
-- **Status Info**: Every 30 minutes (weather, battery, time)
-- **WiFi**: Auto-reconnection on connection loss
+- **Images**: Every 24 hours (86400000 ms)
+- **Time**: Every 30 minutes (1800000 ms) - syncs with NTP servers
+- **Weather**: Every 30 minutes (1800000 ms) - fetches from Open-Meteo API
+- **Battery**: Every 30 minutes (1800000 ms) - reads actual battery voltage
+- **Manual Refresh**: WAKE button triggers immediate update of all components
 
 ### Supported Image Formats
 - JPEG images
