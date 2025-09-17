@@ -11,7 +11,10 @@ const char* ntpServers[] = {
 };
 
 TimeWidget::TimeWidget(Inkplate& display)
-    : Widget(display), lastTimeUpdate(0), timeInitialized(false) {}
+    : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(DEFAULT_TIME_UPDATE_INTERVAL) {}
+
+TimeWidget::TimeWidget(Inkplate& display, unsigned long updateInterval)
+    : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(updateInterval) {}
 
 void TimeWidget::begin() {
     Serial.println("Initializing time widget...");
@@ -21,7 +24,7 @@ void TimeWidget::begin() {
 
 bool TimeWidget::shouldUpdate() {
     unsigned long currentTime = millis();
-    return (currentTime - lastTimeUpdate >= TIME_UPDATE_INTERVAL) || (lastTimeUpdate == 0);
+    return (currentTime - lastTimeUpdate >= timeUpdateInterval) || (lastTimeUpdate == 0);
 }
 
 void TimeWidget::render(const LayoutRegion& region) {
@@ -174,4 +177,9 @@ void TimeWidget::forceTimeSync() {
 
 bool TimeWidget::isTimeInitialized() const {
     return timeInitialized;
+}
+
+void TimeWidget::forceUpdate() {
+    Serial.println("Force updating time widget...");
+    lastTimeUpdate = 0; // Force next shouldUpdate() to return true
 }

@@ -7,6 +7,7 @@
 class TimeWidget : public Widget {
 public:
     TimeWidget(Inkplate& display);
+    TimeWidget(Inkplate& display, unsigned long updateInterval);
 
     // Widget interface implementation
     void render(const LayoutRegion& region) override;
@@ -16,6 +17,7 @@ public:
     // Time-specific methods
     void syncTimeWithNTP();
     void forceTimeSync();
+    void forceUpdate();
     bool isTimeInitialized() const;
     String getFormattedDate();
     String getFormattedTime();
@@ -24,8 +26,9 @@ public:
 private:
     unsigned long lastTimeUpdate;
     bool timeInitialized;
+    unsigned long timeUpdateInterval;
 
-    static const unsigned long TIME_UPDATE_INTERVAL = 1800000; // 30 minutes
+    static const unsigned long DEFAULT_TIME_UPDATE_INTERVAL = 900000; // 15 minutes
     static const char* NTP_SERVER;
     static const long GMT_OFFSET_SEC = -28800; // PST (UTC-8)
     static const int DAYLIGHT_OFFSET_SEC = 3600; // 1 hour

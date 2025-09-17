@@ -6,6 +6,7 @@
 class BatteryWidget : public Widget {
 public:
     BatteryWidget(Inkplate& display);
+    BatteryWidget(Inkplate& display, unsigned long updateInterval);
 
     // Widget interface implementation
     void render(const LayoutRegion& region) override;
@@ -19,8 +20,9 @@ public:
 
 private:
     unsigned long lastBatteryUpdate;
+    unsigned long batteryUpdateInterval;
 
-    static const unsigned long BATTERY_UPDATE_INTERVAL = 1800000; // 30 minutes
+    static const unsigned long DEFAULT_BATTERY_UPDATE_INTERVAL = 900000; // 15 minutes
     static constexpr float MIN_BATTERY_VOLTAGE = 3.2;
     static constexpr float MAX_BATTERY_VOLTAGE = 4.2;
 

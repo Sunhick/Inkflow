@@ -18,6 +18,7 @@ public:
     void begin();
     void loop();
     void forceRefresh(); // Manual refresh triggered by button
+    void forceTimeAndBatteryUpdate(); // Force update of time and battery widgets
 
     // Layout region getters for widgets
     LayoutRegion getImageRegion() const { return imageRegion; }

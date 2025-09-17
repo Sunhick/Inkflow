@@ -54,7 +54,9 @@ bool ConfigManager::loadConfig() {
     config.weatherCity = doc["weather"]["city"] | "Seattle";
     config.weatherUnits = doc["weather"]["units"] | "fahrenheit";
 
-    config.refreshMs = doc["update"]["refreshMs"] | 86400000UL;
+    config.imageRefreshMs = doc["update"]["imageRefreshMs"] | 86400000UL;
+    config.timeUpdateMs = doc["update"]["timeUpdateMs"] | 900000UL; // 15 minutes default
+    config.batteryUpdateMs = doc["update"]["batteryUpdateMs"] | 900000UL; // 15 minutes default
 
     config.displayWidth = doc["display"]["width"] | 1200;
     config.sidebarWidthPct = doc["display"]["sidebarWidthPct"] | 20;
@@ -86,7 +88,9 @@ bool ConfigManager::saveConfig() {
     doc["weather"]["units"] = config.weatherUnits;
 
     // Update configuration
-    doc["update"]["refreshMs"] = config.refreshMs;
+    doc["update"]["imageRefreshMs"] = config.imageRefreshMs;
+    doc["update"]["timeUpdateMs"] = config.timeUpdateMs;
+    doc["update"]["batteryUpdateMs"] = config.batteryUpdateMs;
 
     // Display configuration
     doc["display"]["width"] = config.displayWidth;
@@ -122,7 +126,9 @@ void ConfigManager::setDefaults() {
     config.weatherCity = "Seattle";
     config.weatherUnits = "fahrenheit";
 
-    config.refreshMs = 86400000UL; // 24 hours
+    config.imageRefreshMs = 86400000UL; // 24 hours
+    config.timeUpdateMs = 900000UL; // 15 minutes
+    config.batteryUpdateMs = 900000UL; // 15 minutes
 
     config.displayWidth = 1200;
     config.sidebarWidthPct = 20;

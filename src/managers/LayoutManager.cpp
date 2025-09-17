@@ -46,8 +46,8 @@ void LayoutManager::begin() {
 
     // Create widgets with config values
     imageWidget = new ImageWidget(display, config.serverURL.c_str());
-    batteryWidget = new BatteryWidget(display);
-    timeWidget = new TimeWidget(display);
+    batteryWidget = new BatteryWidget(display, config.batteryUpdateMs);
+    timeWidget = new TimeWidget(display, config.timeUpdateMs);
     weatherWidget = new WeatherWidget(display, config.weatherLatitude, config.weatherLongitude,
                                     config.weatherCity, config.weatherUnits);
 
@@ -146,7 +146,7 @@ void LayoutManager::handleScheduledUpdate() {
     // Automatic image updates every 24 hours + manual refresh via WAKE button
     unsigned long currentTime = millis();
 
-    if (currentTime - lastUpdate >= configManager->getConfig().refreshMs) {
+    if (currentTime - lastUpdate >= configManager->getConfig().imageRefreshMs) {
         Serial.println("Starting scheduled daily image update...");
 
         if (ensureConnectivity()) {
@@ -163,8 +163,43 @@ void LayoutManager::handleScheduledUpdate() {
 }
 
 void LayoutManager::handleComponentUpdates() {
-    // Component updates are now handled only during manual refresh or scheduled updates
-    // This prevents frequent automatic updates that drain battery
+    // Check if time or battery widgets need updates every 15 minutes
+    bool needsUpdate = false;
+
+    if (timeWidget->shouldUpdate()) {
+        Serial.println("Time widget needs update");
+        needsUpdate = true;
+    }
+
+    if (batteryWidget->shouldUpdate()) {
+        Serial.println("Battery widget needs update");
+        needsUpdate = true;
+    }
+
+    // Only update display if widgets actually need updating
+    if (needsUpdate) {
+        Serial.println("Updating time and battery widgets...");
+
+        // Ensure WiFi is connected for time sync
+        if (ensureConnectivity()) {
+            // Force time sync if time widget needs update
+            if (timeWidget->shouldUpdate()) {
+                timeWidget->syncTimeWithNTP();
+            }
+
+            // Render only the widgets that need updating
+            timeWidget->render(timeRegion);
+            batteryWidget->render(batteryRegion);
+
+            // Draw layout borders to maintain clean appearance
+            drawLayoutBorders();
+
+            // Update display
+            displayManager->update();
+
+            Serial.println("Time and battery widgets updated");
+        }
+    }
 }
 
 bool LayoutManager::ensureConnectivity() {
@@ -258,5 +293,30 @@ void LayoutManager::forceRefresh() {
         lastUpdate = millis();
     } else {
         Serial.println("Cannot refresh layout - no connectivity");
+    }
+}
+
+void LayoutManager::forceTimeAndBatteryUpdate() {
+    Serial.println("Forcing time and battery widget updates");
+
+    if (ensureConnectivity()) {
+        // Force updates by resetting their timers
+        timeWidget->forceUpdate();
+        batteryWidget->forceUpdate();
+
+        // Force time sync
+        timeWidget->forceTimeSync();
+
+        // Render the updated widgets
+        timeWidget->render(timeRegion);
+        batteryWidget->render(batteryRegion);
+
+        // Draw layout borders
+        drawLayoutBorders();
+
+        // Update display
+        displayManager->update();
+
+        Serial.println("Time and battery widgets force updated");
     }
 }

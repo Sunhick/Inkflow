@@ -16,7 +16,9 @@ struct AppConfig {
     String weatherUnits;
 
     // Update Configuration
-    unsigned long refreshMs;
+    unsigned long imageRefreshMs;
+    unsigned long timeUpdateMs;
+    unsigned long batteryUpdateMs;
 
     // Display Configuration
     int displayWidth;
@@ -39,7 +41,9 @@ public:
     const char* getWiFiSSID() const { return config.wifiSSID.c_str(); }
     const char* getWiFiPassword() const { return config.wifiPassword.c_str(); }
     const char* getServerURL() const { return config.serverURL.c_str(); }
-    unsigned long getRefreshMs() const { return config.refreshMs; }
+    unsigned long getImageRefreshMs() const { return config.imageRefreshMs; }
+    unsigned long getTimeUpdateMs() const { return config.timeUpdateMs; }
+    unsigned long getBatteryUpdateMs() const { return config.batteryUpdateMs; }
 
     // Configuration validation
     bool isConfigured() const;

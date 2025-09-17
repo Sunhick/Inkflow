@@ -1,7 +1,10 @@
 #include "BatteryWidget.h"
 
 BatteryWidget::BatteryWidget(Inkplate& display)
-    : Widget(display), lastBatteryUpdate(0) {}
+    : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(DEFAULT_BATTERY_UPDATE_INTERVAL) {}
+
+BatteryWidget::BatteryWidget(Inkplate& display, unsigned long updateInterval)
+    : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(updateInterval) {}
 
 void BatteryWidget::begin() {
     Serial.println("Initializing battery widget...");
@@ -10,7 +13,7 @@ void BatteryWidget::begin() {
 
 bool BatteryWidget::shouldUpdate() {
     unsigned long currentTime = millis();
-    return (currentTime - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) || (lastBatteryUpdate == 0);
+    return (currentTime - lastBatteryUpdate >= batteryUpdateInterval) || (lastBatteryUpdate == 0);
 }
 
 void BatteryWidget::render(const LayoutRegion& region) {

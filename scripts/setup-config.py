@@ -45,8 +45,14 @@ def main():
 
     # Update Configuration
     print("Update Configuration:")
-    refresh_hours = get_input("Refresh interval (hours)", "24")
-    refresh_ms = int(refresh_hours) * 60 * 60 * 1000
+    refresh_hours = get_input("Image refresh interval (hours)", "24")
+    image_refresh_ms = int(refresh_hours) * 60 * 60 * 1000
+
+    time_update_minutes = get_input("Time update interval (minutes)", "15")
+    time_update_ms = int(time_update_minutes) * 60 * 1000
+
+    battery_update_minutes = get_input("Battery update interval (minutes)", "15")
+    battery_update_ms = int(battery_update_minutes) * 60 * 1000
     print()
 
     # Create configuration object
@@ -65,7 +71,9 @@ def main():
             "units": weather_units
         },
         "update": {
-            "refreshMs": refresh_ms
+            "imageRefreshMs": image_refresh_ms,
+            "timeUpdateMs": time_update_ms,
+            "batteryUpdateMs": battery_update_ms
         },
         "display": {
             "width": 1200,
