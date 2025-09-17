@@ -1,26 +1,14 @@
 #include "LayoutManager.h"
-#include "../config/Config.h"
 
-LayoutManager::LayoutManager(const char* ssid, const char* password, const char* imageUrl, unsigned long refreshMs)
-    : display(INKPLATE_3BIT), imageUrl(imageUrl), refreshInterval(refreshMs), lastUpdate(0) {
+LayoutManager::LayoutManager()
+    : display(INKPLATE_3BIT), lastUpdate(0) {
 
-    // Calculate layout regions based on display dimensions
-    calculateLayoutRegions();
-
-    // Create display manager first
-    displayManager = new DisplayManager(display);
-
-    // Create WiFi manager
-    wifiManager = new WiFiManager(ssid, password);
-
-    // Create widgets
-    imageWidget = new ImageWidget(display, imageUrl);
-    batteryWidget = new BatteryWidget(display);
-    timeWidget = new TimeWidget(display);
-    weatherWidget = new WeatherWidget(display);
+    // Initialize config manager
+    configManager = new ConfigManager();
 }
 
 LayoutManager::~LayoutManager() {
+    delete configManager;
     delete displayManager;
     delete wifiManager;
     delete imageWidget;
@@ -33,18 +21,43 @@ void LayoutManager::begin() {
     Serial.begin(115200);
     Serial.println("Starting Inkplate Layout Manager...");
 
+    // Initialize configuration manager first
+    if (!configManager->begin()) {
+        Serial.println("Failed to initialize configuration manager!");
+        return;
+    }
+
+    const AppConfig& config = configManager->getConfig();
+
+    // Calculate layout regions based on config
+    calculateLayoutRegions();
+
+    // Create display manager
+    displayManager = new DisplayManager(display);
+
+    // Create WiFi manager with config values
+    wifiManager = new WiFiManager(config.wifiSSID.c_str(), config.wifiPassword.c_str());
+
+    // Create widgets with config values
+    imageWidget = new ImageWidget(display, config.serverURL.c_str());
+    batteryWidget = new BatteryWidget(display);
+    timeWidget = new TimeWidget(display);
+    weatherWidget = new WeatherWidget(display, config.weatherLatitude, config.weatherLongitude,
+                                    config.weatherCity, config.weatherUnits);
+
     initializeComponents();
     performInitialSetup();
 }
 
 void LayoutManager::calculateLayoutRegions() {
-    int displayWidth = display.width();
+    const AppConfig& config = configManager->getConfig();
+    int displayWidth = config.displayWidth;
     int displayHeight = display.height();
 
     Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
 
-    // Calculate sidebar width (20% of total width)
-    int sidebarWidth = (displayWidth * SIDEBAR_WIDTH_PCT) / 100;
+    // Calculate sidebar width from config
+    int sidebarWidth = (displayWidth * config.sidebarWidthPct) / 100;
     int imageAreaWidth = displayWidth - sidebarWidth;
 
     // Define main regions
@@ -114,7 +127,7 @@ void LayoutManager::handleScheduledUpdate() {
     // Automatic image updates every 24 hours + manual refresh via WAKE button
     unsigned long currentTime = millis();
 
-    if (currentTime - lastUpdate >= refreshInterval) {
+    if (currentTime - lastUpdate >= configManager->getConfig().refreshMs) {
         Serial.println("Starting scheduled daily image update...");
 
         if (ensureConnectivity()) {

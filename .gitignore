@@ -10,9 +10,8 @@
 *.elf
 *.map
 
-# Generated configuration file (contains sensitive data)
-src/Config.h
-src/config/Config.h
+# Configuration files (may contain sensitive data)
+data/config.json
 
 # IDE files
 .vscode/

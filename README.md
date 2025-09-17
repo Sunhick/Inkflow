@@ -22,6 +22,7 @@ A smart e-paper display for Inkplate devices that shows web images with weather,
 
 - Inkplate 10 e-paper display
 - WiFi connection
+- Image server (Raspberry pi-5, personal choice)
 
 ## Setup
 
@@ -36,7 +37,7 @@ You have two options for getting the firmware onto your device:
    - Linux/macOS: `./flash.sh [port]`
    - Windows: `flash.bat [COM_port]`
 
-**Note**: Pre-built firmware uses template configuration. You'll need to rebuild with your settings for it to work properly.
+**Note**: Pre-built firmware includes a default configuration. After flashing, you can update settings using the interactive configuration tool.
 
 ### Option B: Build from Source (Recommended)
 
@@ -46,39 +47,41 @@ Install PlatformIO Core or use the PlatformIO IDE extension for VS Code.
 
 #### 2. Configuration
 
+**Interactive Configuration Setup:**
 ```bash
-# Copy the template and edit manually
-cp src/config/Config.h.template src/config/Config.h
+# Setup configuration (creates data/config.json)
+make setup-config
 
-# Edit src/config/Config.h with your settings
-# Then build and upload
-make build
-make upload
+# Build and upload everything
+make upload-all
 ```
 
 #### Configuration Parameters
 
-Edit `src/config/Config.h` with your settings:
+The configuration uses a `config.json` file stored on the device's SPIFFS filesystem:
 
-- **WIFI_SSID** - Your WiFi network name
-- **WIFI_PASSWORD** - Your WiFi password
-- **SERVER_URL** - Direct URL to a JPEG image
-- **WEATHER_LATITUDE** - Your latitude (default: Seattle)
-- **WEATHER_LONGITUDE** - Your longitude (default: Seattle)
-- **WEATHER_CITY** - City name for display
-- **WEATHER_UNITS** - "fahrenheit" or "celsius"
+- **WiFi SSID/Password** - Your network credentials
+- **Server URL** - Direct URL to a JPEG image
+- **Weather Location** - Latitude, longitude, and city name for weather data
+- **Weather Units** - "fahrenheit" or "celsius"
+- **Refresh Interval** - How often to update in milliseconds (default: 86400000 = 24 hours)
+
+The interactive setup script (`make setup-config`) will guide you through configuring these parameters.
 
 
 
 ## Quick Start
 
 ```bash
-# Build and upload
-make build
-make upload
+# 1. Setup configuration
+make setup-config
+
+# 2. Upload everything (filesystem + firmware)
+make upload-all
 
 # Or use PlatformIO directly
-pio run --target upload
+pio run --target uploadfs  # Upload config.json
+pio run --target upload    # Upload firmware
 ```
 
 ## Pre-built Firmware
@@ -130,37 +133,12 @@ The display uses a **sidebar layout** with the main image taking up 80% of the w
 └──────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
-### Left Sidebar Sections (20% width, divided into 3 equal parts)
-
-#### **Time Section (Top 1/3)**
-- **DATE & TIME** (title)
-- **FRIDAY** (day of week)
-- **September 15, 2025** (full date)
-- **2:30 PM** (current time)
-
-#### **Weather Section (Middle 1/3)**
-- **WEATHER** (title)
-- **Seattle** (city name, large text)
-- **72F** (temperature, large text)
-- **Partly Cloudy** (weather description)
-- **Rain: 15%** (precipitation probability)
-
-#### **Battery Section (Bottom 1/3)**
-- **BATTERY** (title)
-- **85%** (percentage, large text)
-- **[████████░░]** (visual battery icon)
-- **3.85V** (actual voltage)
-
 ### Update Intervals
 - **Images**: Every 24 hours (86400000 ms)
 - **Time**: Every 30 minutes (1800000 ms) - syncs with NTP servers
 - **Weather**: Every 30 minutes (1800000 ms) - fetches from Open-Meteo API
 - **Battery**: Every 30 minutes (1800000 ms) - reads actual battery voltage
 - **Manual Refresh**: WAKE button triggers immediate update of all components
-
-### Supported Image Formats
-- JPEG images
-- Images should be sized appropriately for the Inkplate 10 display (1200x825 pixels)
 
 ## Troubleshooting
 
@@ -174,24 +152,57 @@ The display uses a **sidebar layout** with the main image taking up 80% of the w
 - Try pressing the reset button on the Inkplate
 
 ### WiFi Connection Issues
-- Verify WiFi credentials in `Config.h`
+- Verify WiFi credentials in your `config.json` file (run `make setup-config` to update)
 - Check WiFi signal strength
 - Ensure the network supports 2.4GHz (ESP32 requirement)
+- Use serial monitor (`make monitor`) to see connection status
 
 ### Image Loading Issues
 - Verify the image URL is accessible
 - Check image format (JPEG required)
 - Ensure image size is reasonable for the display
 
+## Configuration Management
+
+### Updating Configuration
+To change settings after initial setup:
+```bash
+make setup-config    # Run interactive configuration
+make upload-fs       # Upload updated config.json to device
+```
+
+### Configuration File Location
+- **Local**: `data/config.json` (created by setup script)
+- **Device**: Stored in SPIFFS filesystem on the ESP32
+
+### Default Configuration
+If no configuration file exists, the device will use built-in defaults and display an error message on the screen.
+
 ## Serial Monitor Output
 
 The device outputs status information via serial at 115200 baud:
 - WiFi connection status
+- Configuration loading status
 - Image fetch attempts
-- Error messages
-- Success confirmations
+- Weather API responses
+- Error messages and success confirmations
 
 Use `make monitor` or `make upload-monitor` to view serial output.
+
+## Available Make Targets
+
+```bash
+make setup-config     # Interactive configuration setup
+make build           # Build firmware only
+make upload          # Upload firmware only
+make upload-fs       # Upload filesystem (config.json) only
+make upload-all      # Upload both filesystem and firmware
+make monitor         # Open serial monitor
+make upload-monitor  # Upload firmware and open monitor
+make clean           # Clean build files
+make update          # Update PlatformIO libraries
+make help           # Show all available targets
+```
 
 ## License
 

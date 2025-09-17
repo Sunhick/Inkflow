@@ -1,10 +1,11 @@
 #include "WeatherWidget.h"
-#include "../config/Config.h"
 
 const char* WeatherWidget::WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
 
-WeatherWidget::WeatherWidget(Inkplate& display)
-    : Widget(display), lastWeatherUpdate(0) {
+WeatherWidget::WeatherWidget(Inkplate& display, const String& latitude, const String& longitude,
+                           const String& city, const String& units)
+    : Widget(display), lastWeatherUpdate(0), weatherLatitude(latitude),
+      weatherLongitude(longitude), weatherCity(city), weatherUnits(units) {
     currentWeather.isValid = false;
 }
 
@@ -68,9 +69,9 @@ void WeatherWidget::fetchWeatherData() {
 
 String WeatherWidget::buildWeatherURL() {
     String url = String(WEATHER_API_URL);
-    url += "?latitude=" + String(WEATHER_LATITUDE);
-    url += "&longitude=" + String(WEATHER_LONGITUDE);
-    url += "&current_weather=true&temperature_unit=" + String(WEATHER_UNITS);
+    url += "?latitude=" + weatherLatitude;
+    url += "&longitude=" + weatherLongitude;
+    url += "&current_weather=true&temperature_unit=" + weatherUnits;
     url += "&hourly=precipitation_probability&forecast_days=1";
     return url;
 }
@@ -131,7 +132,7 @@ void WeatherWidget::drawWeatherDisplay(const LayoutRegion& region) {
     display.setTextSize(3);
     display.setTextColor(0);
     display.setTextWrap(true);
-    display.print(WEATHER_CITY);
+    display.print(weatherCity);
 
     if (!currentWeather.isValid) {
         display.setCursor(labelX, labelY + 55);

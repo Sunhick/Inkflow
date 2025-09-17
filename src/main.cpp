@@ -1,7 +1,6 @@
 #include "managers/LayoutManager.h"
-#include "config/Config.h"
 
-LayoutManager layoutManager(WIFI_SSID, WIFI_PASSWORD, SERVER_URL, REFRESH_MS);
+LayoutManager layoutManager;
 
 void handleWakeButton();
 
@@ -10,9 +9,6 @@ void setup() {
     delay(1000);
 
     Serial.println("=== INKPLATE IMAGE DISPLAY STARTING ===");
-    Serial.printf("Server URL: %s\n", SERVER_URL);
-    Serial.printf("WiFi SSID: %s\n", WIFI_SSID);
-    Serial.printf("Refresh interval: %lu ms\n", REFRESH_MS);
 
     // Initialize WAKE button pins
     // pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);

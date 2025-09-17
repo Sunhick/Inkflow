@@ -39,8 +39,36 @@ jobs:
         python -m pip install --upgrade pip
         pip install --upgrade platformio
 
-    - name: Copy config template
-      run: cp src/config/Config.h.template src/config/Config.h
+    - name: Create default config
+      run: |
+        mkdir -p data
+        cat > data/config.json << 'EOF'
+        {
+          "wifi": {
+            "ssid": "DEFAULT_SSID",
+            "password": "DEFAULT_PASSWORD"
+          },
+          "server": {
+            "url": "http://example.com/image.jpg"
+          },
+          "weather": {
+            "latitude": "47.6062",
+            "longitude": "-122.3321",
+            "city": "Seattle",
+            "units": "fahrenheit"
+          },
+          "update": {
+            "refreshMs": 86400000
+          },
+          "display": {
+            "width": 1200,
+            "sidebarWidthPct": 20
+          },
+          "hardware": {
+            "wakeButtonPin": 36
+          }
+        }
+        EOF
 
     - name: Build firmware
       run: pio run --environment esp32
@@ -119,13 +147,15 @@ jobs:
 
         ## Before Flashing
 
-        **IMPORTANT**: You must configure the firmware before use!
+        **IMPORTANT**: You must configure the device before use!
 
-        1. Copy `Config.h.template` to `Config.h` in the source code
-        2. Edit `Config.h` with your WiFi credentials and image URL
-        3. Rebuild the firmware with your configuration
+        This firmware uses runtime configuration stored in a JSON file on the device.
 
-        This pre-built firmware uses default/template values and will not work without proper configuration.
+        1. Create your configuration using the setup script
+        2. Upload the configuration file to the device filesystem
+        3. Flash this firmware
+
+        See the main README for detailed configuration instructions.
 
         ## Flashing Instructions
 

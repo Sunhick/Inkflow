@@ -1,0 +1,48 @@
+#pragma once
+
+#include <WiFi.h>
+#include <ArduinoJson.h>
+
+struct AppConfig {
+    // WiFi Configuration
+    String wifiSSID;
+    String wifiPassword;
+    String serverURL;
+
+    // Weather Configuration
+    String weatherLatitude;
+    String weatherLongitude;
+    String weatherCity;
+    String weatherUnits;
+
+    // Update Configuration
+    unsigned long refreshMs;
+
+    // Display Configuration
+    int displayWidth;
+    int sidebarWidthPct;
+
+    // Hardware Configuration
+    int wakeButtonPin;
+};
+
+class ConfigManager {
+public:
+    ConfigManager();
+    bool begin();
+    bool loadConfig();
+    bool saveConfig();
+    const AppConfig& getConfig() const { return config; }
+    void setConfig(const AppConfig& newConfig) { config = newConfig; }
+
+    // Helper methods for easy access
+    const char* getWiFiSSID() const { return config.wifiSSID.c_str(); }
+    const char* getWiFiPassword() const { return config.wifiPassword.c_str(); }
+    const char* getServerURL() const { return config.serverURL.c_str(); }
+    unsigned long getRefreshMs() const { return config.refreshMs; }
+
+private:
+    AppConfig config;
+    const char* CONFIG_FILE = "/config.json";
+    void setDefaults();
+};

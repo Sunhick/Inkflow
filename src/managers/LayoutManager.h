@@ -3,6 +3,7 @@
 
 #include "../core/LayoutRegion.h"
 #include "DisplayManager.h"
+#include "ConfigManager.h"
 #include "../widgets/ImageWidget.h"
 #include "../widgets/BatteryWidget.h"
 #include "../widgets/TimeWidget.h"
@@ -11,7 +12,7 @@
 
 class LayoutManager {
 public:
-    LayoutManager(const char* ssid, const char* password, const char* imageUrl, unsigned long refreshMs);
+    LayoutManager();
     ~LayoutManager();
 
     void begin();
@@ -28,6 +29,7 @@ public:
 private:
     // Core components
     Inkplate display;
+    ConfigManager* configManager;
     DisplayManager* displayManager;
     WiFiManager* wifiManager;
 
@@ -45,8 +47,6 @@ private:
     LayoutRegion batteryRegion;
 
     // Configuration
-    const char* imageUrl;
-    unsigned long refreshInterval;
     unsigned long lastUpdate;
 
     // Private methods

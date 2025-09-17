@@ -17,7 +17,8 @@ struct WeatherData {
 
 class WeatherWidget : public Widget {
 public:
-    WeatherWidget(Inkplate& display);
+    WeatherWidget(Inkplate& display, const String& latitude, const String& longitude,
+                  const String& city, const String& units);
 
     // Widget interface implementation
     void render(const LayoutRegion& region) override;
@@ -31,6 +32,12 @@ public:
 private:
     unsigned long lastWeatherUpdate;
     WeatherData currentWeather;
+
+    // Configuration
+    String weatherLatitude;
+    String weatherLongitude;
+    String weatherCity;
+    String weatherUnits;
 
     static const unsigned long WEATHER_UPDATE_INTERVAL = 1800000; // 30 minutes
     static const char* WEATHER_API_URL;
