@@ -14,7 +14,9 @@ TimeWidget::TimeWidget(Inkplate& display)
     : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(DEFAULT_TIME_UPDATE_INTERVAL) {}
 
 TimeWidget::TimeWidget(Inkplate& display, unsigned long updateInterval)
-    : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(updateInterval) {}
+    : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(updateInterval) {
+    Serial.printf("TimeWidget created with update interval: %lu ms (%lu seconds)\n", updateInterval, updateInterval / 1000);
+}
 
 void TimeWidget::begin() {
     Serial.println("Initializing time widget...");

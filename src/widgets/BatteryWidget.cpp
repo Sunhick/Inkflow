@@ -4,7 +4,9 @@ BatteryWidget::BatteryWidget(Inkplate& display)
     : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(DEFAULT_BATTERY_UPDATE_INTERVAL) {}
 
 BatteryWidget::BatteryWidget(Inkplate& display, unsigned long updateInterval)
-    : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(updateInterval) {}
+    : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(updateInterval) {
+    Serial.printf("BatteryWidget created with update interval: %lu ms (%lu seconds)\n", updateInterval, updateInterval / 1000);
+}
 
 void BatteryWidget::begin() {
     Serial.println("Initializing battery widget...");

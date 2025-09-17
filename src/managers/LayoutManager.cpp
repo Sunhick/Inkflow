@@ -163,8 +163,19 @@ void LayoutManager::handleScheduledUpdate() {
 }
 
 void LayoutManager::handleComponentUpdates() {
-    // Check if time or battery widgets need updates every 15 minutes
+    // Check if time or battery widgets need updates
     bool needsUpdate = false;
+
+    // Debug: Print current time and intervals every 30 seconds
+    static unsigned long lastDebugPrint = 0;
+    unsigned long currentTime = millis();
+    if (currentTime - lastDebugPrint > 30000) {
+        Serial.printf("=== UPDATE CHECK DEBUG ===\n");
+        Serial.printf("Current time: %lu ms\n", currentTime);
+        Serial.printf("Time update interval: %lu ms\n", configManager->getConfig().timeUpdateMs);
+        Serial.printf("Battery update interval: %lu ms\n", configManager->getConfig().batteryUpdateMs);
+        lastDebugPrint = currentTime;
+    }
 
     if (timeWidget->shouldUpdate()) {
         Serial.println("Time widget needs update");
