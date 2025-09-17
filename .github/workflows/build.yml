@@ -39,17 +39,25 @@ jobs:
         python -m pip install --upgrade pip
         pip install --upgrade platformio
 
-    - name: Create default config
+    - name: Build firmware
+      run: pio run --environment esp32
+
+    - name: Create firmware package
       run: |
-        mkdir -p data
-        cat > data/config.json << 'EOF'
+        mkdir -p firmware
+        cp .pio/build/esp32/firmware.bin firmware/inkplate-image-display.bin
+        cp .pio/build/esp32/partitions.bin firmware/ 2>/dev/null || true
+        cp .pio/build/esp32/bootloader.bin firmware/ 2>/dev/null || true
+
+        # Create template config.json for users to edit
+        cat > firmware/config.json << 'EOF'
         {
           "wifi": {
-            "ssid": "DEFAULT_SSID",
-            "password": "DEFAULT_PASSWORD"
+            "ssid": "YOUR_WIFI_SSID",
+            "password": "YOUR_WIFI_PASSWORD"
           },
           "server": {
-            "url": "http://example.com/image.jpg"
+            "url": "http://example.com/your-image.jpg"
           },
           "weather": {
             "latitude": "47.6062",
@@ -70,16 +78,6 @@ jobs:
         }
         EOF
 
-    - name: Build firmware
-      run: pio run --environment esp32
-
-    - name: Create firmware package
-      run: |
-        mkdir -p firmware
-        cp .pio/build/esp32/firmware.bin firmware/inkplate-image-display.bin
-        cp .pio/build/esp32/partitions.bin firmware/ 2>/dev/null || true
-        cp .pio/build/esp32/bootloader.bin firmware/ 2>/dev/null || true
-
         # Create flash script
         cat > firmware/flash.sh << 'EOF'
         #!/bin/bash
@@ -88,20 +86,78 @@ jobs:
 
         PORT=${1:-/dev/ttyUSB0}
 
-        echo "Flashing Inkplate Image Display firmware..."
+        echo "=== Inkplate Image Display Flash Tool ==="
         echo "Port: $PORT"
 
-        if command -v esptool.py &> /dev/null; then
-            esptool.py --chip esp32 --port $PORT --baud 460800 write_flash -z 0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 inkplate-image-display.bin
-        elif command -v esptool &> /dev/null; then
-            esptool --chip esp32 --port $PORT --baud 460800 write_flash -z 0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 inkplate-image-display.bin
-        else
-            echo "Error: esptool not found. Please install esptool:"
+        # Check if config.json exists
+        if [ ! -f "config.json" ]; then
+            echo "ERROR: config.json not found!"
+            echo "Please edit the config.json file with your WiFi credentials and settings."
+            echo "Example:"
+            echo '  {"wifi": {"ssid": "YourWiFi", "password": "YourPassword"}, ...}'
+            exit 1
+        fi
+
+        # Validate JSON
+        if ! python3 -m json.tool config.json > /dev/null 2>&1; then
+            echo "ERROR: config.json is not valid JSON!"
+            echo "Please check your config.json file for syntax errors."
+            exit 1
+        fi
+
+        echo "✓ Configuration file validated"
+
+        # Check for required tools
+        if ! command -v esptool.py &> /dev/null; then
+            echo "ERROR: esptool.py not found. Please install it:"
             echo "pip install esptool"
             exit 1
         fi
 
-        echo "Flashing complete!"
+        if ! command -v mkspiffs &> /dev/null; then
+            echo "ERROR: mkspiffs not found. Please install PlatformIO:"
+            echo "pip install platformio"
+            echo "This will provide the mkspiffs tool needed to create the filesystem."
+            exit 1
+        fi
+
+        echo "✓ Required tools found"
+
+        # Create temporary directory for SPIFFS
+        TEMP_DIR=$(mktemp -d)
+        cp config.json "$TEMP_DIR/"
+
+        echo "Building filesystem image..."
+        # Create SPIFFS image
+        mkspiffs -c "$TEMP_DIR" -b 4096 -p 256 -s 1441792 spiffs.bin
+
+        if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to create filesystem image"
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+
+        echo "✓ Filesystem image created"
+
+        # Clean up temp directory
+        rm -rf "$TEMP_DIR"
+
+        echo "Flashing firmware and configuration..."
+        esptool.py --chip esp32 --port $PORT --baud 460800 write_flash -z \
+            0x1000 bootloader.bin \
+            0x8000 partitions.bin \
+            0x10000 inkplate-image-display.bin \
+            0x290000 spiffs.bin
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Flashing complete!"
+            echo "Your Inkplate should now boot with your configuration."
+            # Clean up generated SPIFFS image
+            rm -f spiffs.bin
+        else
+            echo "ERROR: Flashing failed!"
+            exit 1
+        fi
         EOF
 
         chmod +x firmware/flash.sh
@@ -115,141 +171,85 @@ jobs:
         set PORT=%1
         if "%PORT%"=="" set PORT=COM3
 
-        echo Flashing Inkplate Image Display firmware...
+        echo === Inkplate Image Display Flash Tool ===
         echo Port: %PORT%
 
-        esptool.py --chip esp32 --port %PORT% --baud 460800 write_flash -z 0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 inkplate-image-display.bin
+        REM Check if config.json exists
+        if not exist "config.json" (
+            echo ERROR: config.json not found!
+            echo Please edit the config.json file with your WiFi credentials and settings.
+            pause
+            exit /b 1
+        )
 
+        REM Validate JSON (basic check)
+        python -m json.tool config.json >nul 2>&1
         if %ERRORLEVEL% neq 0 (
-            echo Error: esptool not found. Please install esptool:
+            echo ERROR: config.json is not valid JSON!
+            echo Please check your config.json file for syntax errors.
+            pause
+            exit /b 1
+        )
+
+        echo ✓ Configuration file validated
+
+        REM Check for esptool
+        esptool.py --help >nul 2>&1
+        if %ERRORLEVEL% neq 0 (
+            echo ERROR: esptool.py not found. Please install it:
             echo pip install esptool
             pause
             exit /b 1
         )
 
-        echo Flashing complete!
+        REM Check for mkspiffs
+        mkspiffs --help >nul 2>&1
+        if %ERRORLEVEL% neq 0 (
+            echo ERROR: mkspiffs not found. Please install PlatformIO:
+            echo pip install platformio
+            pause
+            exit /b 1
+        )
+
+        echo ✓ Required tools found
+
+        REM Create temporary directory and copy config
+        mkdir temp_spiffs 2>nul
+        copy config.json temp_spiffs\
+
+        echo Building filesystem image...
+        mkspiffs -c temp_spiffs -b 4096 -p 256 -s 1441792 spiffs.bin
+
+        if %ERRORLEVEL% neq 0 (
+            echo ERROR: Failed to create filesystem image
+            rmdir /s /q temp_spiffs
+            pause
+            exit /b 1
+        )
+
+        echo ✓ Filesystem image created
+
+        REM Clean up temp directory
+        rmdir /s /q temp_spiffs
+
+        echo Flashing firmware and configuration...
+        esptool.py --chip esp32 --port %PORT% --baud 460800 write_flash -z 0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 inkplate-image-display.bin 0x290000 spiffs.bin
+
+        if %ERRORLEVEL% eq 0 (
+            echo ✓ Flashing complete!
+            echo Your Inkplate should now boot with your configuration.
+            del spiffs.bin
+        ) else (
+            echo ERROR: Flashing failed!
+        )
+
         pause
         EOF
 
         # Copy setup script to firmware package
         cp scripts/setup-config.py firmware/
 
-        # Create filesystem upload script
-        cat > firmware/upload-config.py << 'EOF'
-        #!/usr/bin/env python3
-        """
-        Upload config.json to Inkplate device filesystem
-        """
-        import os
-        import sys
-        import json
-        import tempfile
-        import subprocess
-        from pathlib import Path
 
-        def create_spiffs_image(config_file, output_file, size_kb=1536):
-            """Create SPIFFS image with config.json"""
-            try:
-                # Create temporary directory structure
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    # Copy config.json to temp directory
-                    temp_config = os.path.join(temp_dir, 'config.json')
-                    with open(config_file, 'r') as src, open(temp_config, 'w') as dst:
-                        dst.write(src.read())
-
-                    # Create SPIFFS image using mkspiffs (if available)
-                    cmd = [
-                        'mkspiffs',
-                        '-c', temp_dir,
-                        '-b', '4096',
-                        '-p', '256',
-                        '-s', str(size_kb * 1024),
-                        output_file
-                    ]
-
-                    result = subprocess.run(cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        print(f"Error creating SPIFFS image: {result.stderr}")
-                        return False
-
-                    return True
-            except Exception as e:
-                print(f"Error: {e}")
-                return False
-
-        def upload_spiffs(port, spiffs_file):
-            """Upload SPIFFS image to device"""
-            try:
-                cmd = [
-                    'esptool.py',
-                    '--chip', 'esp32',
-                    '--port', port,
-                    '--baud', '460800',
-                    'write_flash',
-                    '-z',
-                    '0x290000',  # SPIFFS partition offset
-                    spiffs_file
-                ]
-
-                result = subprocess.run(cmd)
-                return result.returncode == 0
-            except Exception as e:
-                print(f"Error uploading: {e}")
-                return False
-
-        def main():
-            if len(sys.argv) < 2:
-                print("Usage: python upload-config.py <config.json> [port]")
-                print("Example: python upload-config.py config.json /dev/ttyUSB0")
-                sys.exit(1)
-
-            config_file = sys.argv[1]
-            port = sys.argv[2] if len(sys.argv) > 2 else '/dev/ttyUSB0'
-
-            if not os.path.exists(config_file):
-                print(f"Error: Config file '{config_file}' not found")
-                sys.exit(1)
-
-            # Validate JSON
-            try:
-                with open(config_file, 'r') as f:
-                    json.load(f)
-            except json.JSONDecodeError as e:
-                print(f"Error: Invalid JSON in config file: {e}")
-                sys.exit(1)
-
-            print(f"Uploading {config_file} to {port}...")
-
-            # Try direct esptool approach first (simpler but may not work)
-            print("Attempting direct upload...")
-            try:
-                cmd = [
-                    'esptool.py',
-                    '--chip', 'esp32',
-                    '--port', port,
-                    '--baud', '460800',
-                    'write_flash',
-                    '0x290000',
-                    config_file
-                ]
-                result = subprocess.run(cmd)
-                if result.returncode == 0:
-                    print("Upload successful!")
-                    return
-            except:
-                pass
-
-            print("Direct upload failed. You'll need to use PlatformIO:")
-            print("1. Install PlatformIO: pip install platformio")
-            print("2. Clone project: git clone https://github.com/Sunhick/Inkplate10-client.git")
-            print("3. Copy config: cp config.json Inkplate10-client/data/")
-            print("4. Upload filesystem: cd Inkplate10-client && pio run --target uploadfs")
-
-        if __name__ == '__main__':
-            main()
-        EOF
-
-        chmod +x firmware/upload-config.py
 
         # Create README for firmware package
         cat > firmware/README.md << 'EOF'
@@ -262,25 +262,32 @@ jobs:
         - `inkplate-image-display.bin` - Main firmware binary
         - `bootloader.bin` - ESP32 bootloader
         - `partitions.bin` - Partition table
+        - `config.json` - Configuration template (EDIT THIS FILE)
         - `flash.sh` - Linux/macOS flash script
         - `flash.bat` - Windows flash script
-        - `setup-config.py` - Configuration setup script
-        - `upload-config.py` - Configuration upload script
+        - `setup-config.py` - Interactive configuration setup script
 
-        ## Quick Setup (Recommended)
+        ## Quick Setup
 
         1. **Install dependencies:**
            ```bash
-           pip install esptool pyserial
+           pip install esptool platformio
            ```
 
-        2. **Create your configuration:**
+        2. **Configure your device:**
+
+           **Option A: Interactive setup (recommended)**
            ```bash
            python setup-config.py
            ```
-           This will create a `config.json` file with your WiFi credentials, image URL, and weather settings.
 
-        3. **Flash firmware:**
+           **Option B: Edit config.json manually**
+           ```bash
+           # Edit the config.json file with your settings
+           nano config.json  # or use any text editor
+           ```
+
+        3. **Flash firmware and configuration:**
            ```bash
            # Linux/macOS
            ./flash.sh [port]
@@ -289,14 +296,10 @@ jobs:
            flash.bat [COM_port]
            ```
 
-        4. **Upload configuration to device:**
-           ```bash
-           # Upload your config.json to the device
-           python upload-config.py config.json [port]
-
-           # Example:
-           python upload-config.py config.json /dev/ttyUSB0
-           ```
+        The flash script will automatically:
+        - Validate your configuration
+        - Build the filesystem with your config.json
+        - Flash both firmware and configuration to your device
 
         ## Manual Configuration
 
@@ -329,7 +332,7 @@ jobs:
 
         Install required tools:
         ```bash
-        pip install esptool pyserial
+        pip install esptool platformio
         ```
 
         ### Linux/macOS
@@ -357,17 +360,40 @@ jobs:
 
         ### Manual Flashing
 
-        ```bash
-        esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash -z \
-          0x1000 bootloader.bin \
-          0x8000 partitions.bin \
-          0x10000 inkplate-image-display.bin
+        **Note**: Manual flashing requires you to build the SPIFFS filesystem separately.
+        Use the provided flash scripts for automatic filesystem creation.
+
+        ## Configuration
+
+        Edit the `config.json` file with your settings:
+
+        ```json
+        {
+          "wifi": {
+            "ssid": "YOUR_WIFI_SSID",
+            "password": "YOUR_WIFI_PASSWORD"
+          },
+          "server": {
+            "url": "http://example.com/your-image.jpg"
+          },
+          "weather": {
+            "latitude": "47.6062",
+            "longitude": "-122.3321",
+            "city": "Your City",
+            "units": "fahrenheit"
+          },
+          "update": {
+            "refreshMs": 86400000
+          }
+        }
         ```
 
         ## Troubleshooting
 
-        - **Device shows "Config Error"**: Upload your config.json file to the device filesystem
-        - **WiFi connection fails**: Check your WiFi credentials in config.json
+        - **"config.json not found"**: Make sure you're running the flash script from the firmware directory
+        - **"Invalid JSON"**: Check your config.json syntax using `python -m json.tool config.json`
+        - **"mkspiffs not found"**: Install PlatformIO: `pip install platformio`
+        - **WiFi connection fails**: Double-check your WiFi credentials in config.json
         - **Image not loading**: Verify the image URL is accessible and points to a JPEG file
 
         For more help, see the main project repository.

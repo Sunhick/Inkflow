@@ -41,8 +41,13 @@ public:
     const char* getServerURL() const { return config.serverURL.c_str(); }
     unsigned long getRefreshMs() const { return config.refreshMs; }
 
+    // Configuration validation
+    bool isConfigured() const;
+    String getConfigurationError() const;
+
 private:
     AppConfig config;
     const char* CONFIG_FILE = "/config.json";
+    bool configFileExists;
     void setDefaults();
 };

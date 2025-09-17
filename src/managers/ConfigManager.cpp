@@ -2,7 +2,7 @@
 #include <FS.h>
 #include <SPIFFS.h>
 
-ConfigManager::ConfigManager() {
+ConfigManager::ConfigManager() : configFileExists(false) {
     setDefaults();
 }
 
@@ -13,20 +13,27 @@ bool ConfigManager::begin() {
     }
 
     Serial.println("SPIFFS mounted successfully");
+
     return loadConfig();
 }
 
 bool ConfigManager::loadConfig() {
-    if (!SPIFFS.exists(CONFIG_FILE)) {
-        Serial.println("Config file not found, using defaults");
+    Serial.printf("Looking for config file: %s\n", CONFIG_FILE);
+
+    configFileExists = SPIFFS.exists(CONFIG_FILE);
+
+    if (!configFileExists) {
+        Serial.printf("Config file %s not found, using defaults\n", CONFIG_FILE);
         return saveConfig(); // Create default config file
     }
 
     fs::File file = SPIFFS.open(CONFIG_FILE, "r");
     if (!file) {
-        Serial.println("Failed to open config file");
+        Serial.printf("Failed to open config file: %s\n", CONFIG_FILE);
         return false;
     }
+
+    Serial.printf("Config file opened successfully, size: %d bytes\n", file.size());
 
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, file);
@@ -121,4 +128,55 @@ void ConfigManager::setDefaults() {
     config.sidebarWidthPct = 20;
 
     config.wakeButtonPin = 36;
+}
+bool ConfigManager::isConfigured() const {
+    // Check if config file existed when loaded
+    if (!configFileExists) {
+        return false;
+    }
+
+    // Check for default/unconfigured values
+    if (config.wifiSSID == "YOUR_WIFI_SSID" ||
+        config.wifiSSID == "DEFAULT_SSID" ||
+        config.wifiSSID.isEmpty()) {
+        return false;
+    }
+
+    if (config.wifiPassword == "YOUR_WIFI_PASSWORD" ||
+        config.wifiPassword == "DEFAULT_PASSWORD" ||
+        config.wifiPassword.isEmpty()) {
+        return false;
+    }
+
+    if (config.serverURL == "http://example.com/image.jpg" ||
+        config.serverURL.isEmpty()) {
+        return false;
+    }
+
+    return true;
+}
+
+String ConfigManager::getConfigurationError() const {
+    if (!configFileExists) {
+        return "Configuration file missing. Please upload config.json to device.";
+    }
+
+    if (config.wifiSSID == "YOUR_WIFI_SSID" ||
+        config.wifiSSID == "DEFAULT_SSID" ||
+        config.wifiSSID.isEmpty()) {
+        return "WiFi SSID not configured. Please update your configuration.";
+    }
+
+    if (config.wifiPassword == "YOUR_WIFI_PASSWORD" ||
+        config.wifiPassword == "DEFAULT_PASSWORD" ||
+        config.wifiPassword.isEmpty()) {
+        return "WiFi password not configured. Please update your configuration.";
+    }
+
+    if (config.serverURL == "http://example.com/image.jpg" ||
+        config.serverURL.isEmpty()) {
+        return "Image server URL not configured. Please update your configuration.";
+    }
+
+    return "Configuration appears valid.";
 }

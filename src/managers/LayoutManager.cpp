@@ -27,6 +27,12 @@ void LayoutManager::begin() {
         return;
     }
 
+    // Check if configuration is properly set up
+    if (!configManager->isConfigured()) {
+        Serial.println("Configuration validation failed!");
+        Serial.println(configManager->getConfigurationError());
+    }
+
     const AppConfig& config = configManager->getConfig();
 
     // Calculate layout regions based on config
@@ -102,6 +108,19 @@ void LayoutManager::loop() {
 void LayoutManager::performInitialSetup() {
     displayManager->showStatus("Initializing...");
 
+    // Check configuration before attempting WiFi connection
+    if (!configManager->isConfigured()) {
+        String errorMsg = configManager->getConfigurationError();
+        Serial.printf("Configuration error: %s\n", errorMsg.c_str());
+
+        // Show configuration error on display
+        imageWidget->showErrorInRegion(imageRegion, "CONFIG ERROR",
+                                     errorMsg.c_str(),
+                                     "Please update your configuration");
+        renderAllWidgets();
+        return;
+    }
+
     if (wifiManager->connect()) {
         Serial.println("Initial setup complete");
         displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
@@ -149,6 +168,18 @@ void LayoutManager::handleComponentUpdates() {
 }
 
 bool LayoutManager::ensureConnectivity() {
+    // First check if configuration is valid
+    if (!configManager->isConfigured()) {
+        String errorMsg = configManager->getConfigurationError();
+        Serial.printf("Configuration error during connectivity check: %s\n", errorMsg.c_str());
+
+        imageWidget->showErrorInRegion(imageRegion, "CONFIG ERROR",
+                                     errorMsg.c_str(),
+                                     "Please update your configuration");
+        renderAllWidgets();
+        return false;
+    }
+
     if (!wifiManager->isConnected()) {
         Serial.println("WiFi disconnected, attempting reconnection...");
         displayManager->showStatus("Reconnecting WiFi...");
