@@ -131,6 +131,126 @@ jobs:
         pause
         EOF
 
+        # Copy setup script to firmware package
+        cp scripts/setup-config.py firmware/
+
+        # Create filesystem upload script
+        cat > firmware/upload-config.py << 'EOF'
+        #!/usr/bin/env python3
+        """
+        Upload config.json to Inkplate device filesystem
+        """
+        import os
+        import sys
+        import json
+        import tempfile
+        import subprocess
+        from pathlib import Path
+
+        def create_spiffs_image(config_file, output_file, size_kb=1536):
+            """Create SPIFFS image with config.json"""
+            try:
+                # Create temporary directory structure
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    # Copy config.json to temp directory
+                    temp_config = os.path.join(temp_dir, 'config.json')
+                    with open(config_file, 'r') as src, open(temp_config, 'w') as dst:
+                        dst.write(src.read())
+
+                    # Create SPIFFS image using mkspiffs (if available)
+                    cmd = [
+                        'mkspiffs',
+                        '-c', temp_dir,
+                        '-b', '4096',
+                        '-p', '256',
+                        '-s', str(size_kb * 1024),
+                        output_file
+                    ]
+
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        print(f"Error creating SPIFFS image: {result.stderr}")
+                        return False
+
+                    return True
+            except Exception as e:
+                print(f"Error: {e}")
+                return False
+
+        def upload_spiffs(port, spiffs_file):
+            """Upload SPIFFS image to device"""
+            try:
+                cmd = [
+                    'esptool.py',
+                    '--chip', 'esp32',
+                    '--port', port,
+                    '--baud', '460800',
+                    'write_flash',
+                    '-z',
+                    '0x290000',  # SPIFFS partition offset
+                    spiffs_file
+                ]
+
+                result = subprocess.run(cmd)
+                return result.returncode == 0
+            except Exception as e:
+                print(f"Error uploading: {e}")
+                return False
+
+        def main():
+            if len(sys.argv) < 2:
+                print("Usage: python upload-config.py <config.json> [port]")
+                print("Example: python upload-config.py config.json /dev/ttyUSB0")
+                sys.exit(1)
+
+            config_file = sys.argv[1]
+            port = sys.argv[2] if len(sys.argv) > 2 else '/dev/ttyUSB0'
+
+            if not os.path.exists(config_file):
+                print(f"Error: Config file '{config_file}' not found")
+                sys.exit(1)
+
+            # Validate JSON
+            try:
+                with open(config_file, 'r') as f:
+                    json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON in config file: {e}")
+                sys.exit(1)
+
+            print(f"Uploading {config_file} to {port}...")
+
+            # Try direct esptool approach first (simpler but may not work)
+            print("Attempting direct upload...")
+            try:
+                cmd = [
+                    'esptool.py',
+                    '--chip', 'esp32',
+                    '--port', port,
+                    '--baud', '460800',
+                    'write_flash',
+                    '0x290000',
+                    config_file
+                ]
+                result = subprocess.run(cmd)
+                if result.returncode == 0:
+                    print("Upload successful!")
+                    return
+            except:
+                pass
+
+            print("Direct upload failed. You'll need to use PlatformIO:")
+            print("1. Install PlatformIO: pip install platformio")
+            print("2. Clone project: git clone https://github.com/Sunhick/Inkplate10-client.git")
+            print("3. Copy config: cp config.json Inkplate10-client/data/")
+            print("4. Upload filesystem: cd Inkplate10-client && pio run --target uploadfs")
+
+        if __name__ == '__main__':
+            main()
+        EOF
+
+        chmod +x firmware/upload-config.py
+
         # Create README for firmware package
         cat > firmware/README.md << 'EOF'
         # Inkplate Image Display - Pre-built Firmware
@@ -144,26 +264,72 @@ jobs:
         - `partitions.bin` - Partition table
         - `flash.sh` - Linux/macOS flash script
         - `flash.bat` - Windows flash script
+        - `setup-config.py` - Configuration setup script
+        - `upload-config.py` - Configuration upload script
 
-        ## Before Flashing
+        ## Quick Setup (Recommended)
 
-        **IMPORTANT**: You must configure the device before use!
+        1. **Install dependencies:**
+           ```bash
+           pip install esptool pyserial
+           ```
 
-        This firmware uses runtime configuration stored in a JSON file on the device.
+        2. **Create your configuration:**
+           ```bash
+           python setup-config.py
+           ```
+           This will create a `config.json` file with your WiFi credentials, image URL, and weather settings.
 
-        1. Create your configuration using the setup script
-        2. Upload the configuration file to the device filesystem
-        3. Flash this firmware
+        3. **Flash firmware:**
+           ```bash
+           # Linux/macOS
+           ./flash.sh [port]
 
-        See the main README for detailed configuration instructions.
+           # Windows
+           flash.bat [COM_port]
+           ```
+
+        4. **Upload configuration to device:**
+           ```bash
+           # Upload your config.json to the device
+           python upload-config.py config.json [port]
+
+           # Example:
+           python upload-config.py config.json /dev/ttyUSB0
+           ```
+
+        ## Manual Configuration
+
+        If you prefer to create the configuration manually, create a `config.json` file:
+
+        ```json
+        {
+          "wifi": {
+            "ssid": "YOUR_WIFI_SSID",
+            "password": "YOUR_WIFI_PASSWORD"
+          },
+          "server": {
+            "url": "http://example.com/your-image.jpg"
+          },
+          "weather": {
+            "latitude": "47.6062",
+            "longitude": "-122.3321",
+            "city": "Your City",
+            "units": "fahrenheit"
+          },
+          "update": {
+            "refreshMs": 86400000
+          }
+        }
+        ```
 
         ## Flashing Instructions
 
         ### Prerequisites
 
-        Install esptool:
+        Install required tools:
         ```bash
-        pip install esptool
+        pip install esptool pyserial
         ```
 
         ### Linux/macOS
@@ -198,15 +364,13 @@ jobs:
           0x10000 inkplate-image-display.bin
         ```
 
-        ## Configuration
+        ## Troubleshooting
 
-        After flashing, you'll need to configure the device with your settings:
+        - **Device shows "Config Error"**: Upload your config.json file to the device filesystem
+        - **WiFi connection fails**: Check your WiFi credentials in config.json
+        - **Image not loading**: Verify the image URL is accessible and points to a JPEG file
 
-        1. WiFi credentials
-        2. Image server URL
-        3. Weather location (optional)
-
-        See the main project README for configuration instructions.
+        For more help, see the main project repository.
         EOF
 
     - name: Upload firmware artifacts
