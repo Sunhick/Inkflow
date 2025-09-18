@@ -1,7 +1,7 @@
 #ifndef WEATHER_WIDGET_H
 #define WEATHER_WIDGET_H
 
-#include "../core/Widget.h"
+#include "../../core/Widget.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>

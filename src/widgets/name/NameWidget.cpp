@@ -83,7 +83,7 @@ void NameWidget::drawNameDisplay(const LayoutRegion& region) {
     // Set text properties
     display.setTextSize(4);
     display.setTextColor(0);
-    display.setTextWrap(true);
+    display.setTextWrap(false); // We'll handle wrapping manually
 
     // Calculate character dimensions for this text size
     int16_t x1, y1;

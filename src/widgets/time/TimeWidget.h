@@ -1,7 +1,7 @@
 #ifndef TIME_WIDGET_H
 #define TIME_WIDGET_H
 
-#include "../core/Widget.h"
+#include "../../core/Widget.h"
 #include <WiFi.h>
 
 class TimeWidget : public Widget {

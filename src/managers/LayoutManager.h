@@ -4,11 +4,11 @@
 #include "../core/LayoutRegion.h"
 #include "DisplayManager.h"
 #include "ConfigManager.h"
-#include "../widgets/ImageWidget.h"
-#include "../widgets/BatteryWidget.h"
-#include "../widgets/TimeWidget.h"
-#include "../widgets/WeatherWidget.h"
-#include "../widgets/NameWidget.h"
+#include "../widgets/image/ImageWidget.h"
+#include "../widgets/battery/BatteryWidget.h"
+#include "../widgets/time/TimeWidget.h"
+#include "../widgets/weather/WeatherWidget.h"
+#include "../widgets/name/NameWidget.h"
 #include "WiFiManager.h"
 
 class LayoutManager {

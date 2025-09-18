@@ -1,7 +1,7 @@
 #ifndef BATTERY_WIDGET_H
 #define BATTERY_WIDGET_H
 
-#include "../core/Widget.h"
+#include "../../core/Widget.h"
 
 class BatteryWidget : public Widget {
 public:
