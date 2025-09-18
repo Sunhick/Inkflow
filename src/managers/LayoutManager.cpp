@@ -15,6 +15,7 @@ LayoutManager::~LayoutManager() {
     delete batteryWidget;
     delete timeWidget;
     delete weatherWidget;
+    delete nameWidget;
 }
 
 void LayoutManager::begin() {
@@ -50,6 +51,7 @@ void LayoutManager::begin() {
     timeWidget = new TimeWidget(display, config.timeUpdateMs);
     weatherWidget = new WeatherWidget(display, config.weatherLatitude, config.weatherLongitude,
                                     config.weatherCity, config.weatherUnits);
+    nameWidget = new NameWidget(display, config.familyName);
 
     initializeComponents();
     performInitialSetup();
@@ -70,16 +72,18 @@ void LayoutManager::calculateLayoutRegions() {
     sidebarRegion = LayoutRegion(0, 0, sidebarWidth, displayHeight);
     imageRegion = LayoutRegion(sidebarWidth, 0, imageAreaWidth, displayHeight);
 
-    // Divide sidebar into three equal sections
-    int sectionHeight = displayHeight / 3;
+    // Divide sidebar into four sections (name, time, weather, battery)
+    int sectionHeight = displayHeight / 4;
 
-    timeRegion = LayoutRegion(0, 0, sidebarWidth, sectionHeight);
-    weatherRegion = LayoutRegion(0, sectionHeight, sidebarWidth, sectionHeight);
-    batteryRegion = LayoutRegion(0, sectionHeight * 2, sidebarWidth, displayHeight - (sectionHeight * 2));
+    nameRegion = LayoutRegion(0, 0, sidebarWidth, sectionHeight);
+    timeRegion = LayoutRegion(0, sectionHeight, sidebarWidth, sectionHeight);
+    weatherRegion = LayoutRegion(0, sectionHeight * 2, sidebarWidth, sectionHeight);
+    batteryRegion = LayoutRegion(0, sectionHeight * 3, sidebarWidth, displayHeight - (sectionHeight * 3));
 
     Serial.printf("Layout regions calculated:\n");
     Serial.printf("  Sidebar: %dx%d at (%d,%d)\n", sidebarRegion.width, sidebarRegion.height, sidebarRegion.x, sidebarRegion.y);
     Serial.printf("  Image: %dx%d at (%d,%d)\n", imageRegion.width, imageRegion.height, imageRegion.x, imageRegion.y);
+    Serial.printf("  Name: %dx%d at (%d,%d)\n", nameRegion.width, nameRegion.height, nameRegion.x, nameRegion.y);
     Serial.printf("  Time: %dx%d at (%d,%d)\n", timeRegion.width, timeRegion.height, timeRegion.x, timeRegion.y);
     Serial.printf("  Weather: %dx%d at (%d,%d)\n", weatherRegion.width, weatherRegion.height, weatherRegion.x, weatherRegion.y);
     Serial.printf("  Battery: %dx%d at (%d,%d)\n", batteryRegion.width, batteryRegion.height, batteryRegion.x, batteryRegion.y);
@@ -95,6 +99,7 @@ void LayoutManager::initializeComponents() {
     batteryWidget->begin();
     timeWidget->begin();
     weatherWidget->begin();
+    nameWidget->begin();
 
     Serial.println("All widgets initialized");
 }
@@ -252,6 +257,7 @@ void LayoutManager::renderAllWidgets() {
 
     // Render each widget in its designated region
     imageWidget->render(imageRegion);
+    nameWidget->render(nameRegion);
     timeWidget->render(timeRegion);
     weatherWidget->render(weatherRegion);
     batteryWidget->render(batteryRegion);
@@ -277,16 +283,21 @@ void LayoutManager::drawLayoutBorders() {
     display.drawLine(separatorX + 1, 0, separatorX + 1, display.height(), 0);
 
     // Draw horizontal separators between sidebar sections
-    int section1Bottom = timeRegion.y + timeRegion.height - 1;
-    int section2Bottom = weatherRegion.y + weatherRegion.height - 1;
+    int nameBottom = nameRegion.y + nameRegion.height - 1;
+    int timeBottom = timeRegion.y + timeRegion.height - 1;
+    int weatherBottom = weatherRegion.y + weatherRegion.height - 1;
+
+    // Line between name and time sections
+    display.drawLine(5, nameBottom, sidebarRegion.width - 5, nameBottom, 0);
+    display.drawLine(5, nameBottom + 1, sidebarRegion.width - 5, nameBottom + 1, 0);
 
     // Line between time and weather sections
-    display.drawLine(5, section1Bottom, sidebarRegion.width - 5, section1Bottom, 0);
-    display.drawLine(5, section1Bottom + 1, sidebarRegion.width - 5, section1Bottom + 1, 0);
+    display.drawLine(5, timeBottom, sidebarRegion.width - 5, timeBottom, 0);
+    display.drawLine(5, timeBottom + 1, sidebarRegion.width - 5, timeBottom + 1, 0);
 
     // Line between weather and battery sections
-    display.drawLine(5, section2Bottom, sidebarRegion.width - 5, section2Bottom, 0);
-    display.drawLine(5, section2Bottom + 1, sidebarRegion.width - 5, section2Bottom + 1, 0);
+    display.drawLine(5, weatherBottom, sidebarRegion.width - 5, weatherBottom, 0);
+    display.drawLine(5, weatherBottom + 1, sidebarRegion.width - 5, weatherBottom + 1, 0);
 }
 
 void LayoutManager::forceRefresh() {

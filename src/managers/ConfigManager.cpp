@@ -60,6 +60,7 @@ bool ConfigManager::loadConfig() {
 
     config.displayWidth = doc["display"]["width"] | 1200;
     config.sidebarWidthPct = doc["display"]["sidebarWidthPct"] | 20;
+    config.familyName = doc["display"]["familyName"] | "Family";
 
     config.wakeButtonPin = doc["hardware"]["wakeButtonPin"] | 36;
 
@@ -95,6 +96,7 @@ bool ConfigManager::saveConfig() {
     // Display configuration
     doc["display"]["width"] = config.displayWidth;
     doc["display"]["sidebarWidthPct"] = config.sidebarWidthPct;
+    doc["display"]["familyName"] = config.familyName;
 
     // Hardware configuration
     doc["hardware"]["wakeButtonPin"] = config.wakeButtonPin;
@@ -132,6 +134,7 @@ void ConfigManager::setDefaults() {
 
     config.displayWidth = 1200;
     config.sidebarWidthPct = 20;
+    config.familyName = "Family";
 
     config.wakeButtonPin = 36;
 }

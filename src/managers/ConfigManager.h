@@ -23,6 +23,7 @@ struct AppConfig {
     // Display Configuration
     int displayWidth;
     int sidebarWidthPct;
+    String familyName;
 
     // Hardware Configuration
     int wakeButtonPin;
@@ -44,6 +45,7 @@ public:
     unsigned long getImageRefreshMs() const { return config.imageRefreshMs; }
     unsigned long getTimeUpdateMs() const { return config.timeUpdateMs; }
     unsigned long getBatteryUpdateMs() const { return config.batteryUpdateMs; }
+    const char* getFamilyName() const { return config.familyName.c_str(); }
 
     // Configuration validation
     bool isConfigured() const;

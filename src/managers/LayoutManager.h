@@ -8,6 +8,7 @@
 #include "../widgets/BatteryWidget.h"
 #include "../widgets/TimeWidget.h"
 #include "../widgets/WeatherWidget.h"
+#include "../widgets/NameWidget.h"
 #include "WiFiManager.h"
 
 class LayoutManager {
@@ -23,6 +24,7 @@ public:
     // Layout region getters for widgets
     LayoutRegion getImageRegion() const { return imageRegion; }
     LayoutRegion getSidebarRegion() const { return sidebarRegion; }
+    LayoutRegion getNameRegion() const { return nameRegion; }
     LayoutRegion getTimeRegion() const { return timeRegion; }
     LayoutRegion getWeatherRegion() const { return weatherRegion; }
     LayoutRegion getBatteryRegion() const { return batteryRegion; }
@@ -39,10 +41,12 @@ private:
     BatteryWidget* batteryWidget;
     TimeWidget* timeWidget;
     WeatherWidget* weatherWidget;
+    NameWidget* nameWidget;
 
     // Layout regions
     LayoutRegion imageRegion;
     LayoutRegion sidebarRegion;
+    LayoutRegion nameRegion;
     LayoutRegion timeRegion;
     LayoutRegion weatherRegion;
     LayoutRegion batteryRegion;

@@ -72,7 +72,8 @@ jobs:
           },
           "display": {
             "width": 1200,
-            "sidebarWidthPct": 20
+            "sidebarWidthPct": 20,
+            "familyName": "Family"
           },
           "hardware": {
             "wakeButtonPin": 36

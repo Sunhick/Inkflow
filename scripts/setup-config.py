@@ -55,6 +55,11 @@ def main():
     battery_update_ms = int(battery_update_minutes) * 60 * 1000
     print()
 
+    # Display Configuration
+    print("Display Configuration:")
+    family_name = get_input("Family name to display", "Family")
+    print()
+
     # Create configuration object
     config = {
         "wifi": {
@@ -77,7 +82,8 @@ def main():
         },
         "display": {
             "width": 1200,
-            "sidebarWidthPct": 20
+            "sidebarWidthPct": 20,
+            "familyName": family_name
         },
         "hardware": {
             "wakeButtonPin": 36
