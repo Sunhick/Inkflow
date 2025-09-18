@@ -2,6 +2,7 @@
 #define LAYOUT_MANAGER_H
 
 #include "../core/LayoutRegion.h"
+#include "../core/DisplayCompositor.h"
 #include "DisplayManager.h"
 #include "ConfigManager.h"
 #include "../widgets/image/ImageWidget.h"
@@ -38,6 +39,7 @@ public:
 private:
     // Core components
     Inkplate display;
+    DisplayCompositor* compositor;
     ConfigManager* configManager;
     DisplayManager* displayManager;
     WiFiManager* wifiManager;

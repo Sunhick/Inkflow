@@ -16,6 +16,7 @@ A smart e-paper display for Inkplate devices that shows web images with weather,
 - Time display with automatic updates
 - **Three-section left sidebar layout** (Time | Weather | Battery)
 - Modular widget-based architecture with Layout Manager
+- **Display Compositor** for optimized rendering and partial updates
 - Error handling and status messages
 
 ## Hardware Requirements
@@ -188,6 +189,50 @@ The device outputs status information via serial at 115200 baud:
 - Error messages and success confirmations
 
 Use `make monitor` or `make upload-monitor` to view serial output.
+
+## Display Compositor Architecture
+
+The project includes a sophisticated display compositor system that optimizes rendering performance:
+
+### Key Components
+
+- **DisplayCompositor**: Central rendering engine that manages a virtual drawing surface
+- **VirtualSurface**: Off-screen buffer where widgets draw their content
+- **CompositorWidget**: Base class for widgets that work with the compositor
+- **Dirty Region Tracking**: Only updates screen areas that have changed
+
+### Benefits
+
+- **Single Render Operation**: All widgets draw to a virtual surface, then the compositor performs one optimized render to the physical display
+- **Partial Updates**: Only changed regions are updated, reducing refresh time and power consumption
+- **Display Mode Management**: Automatically handles switching between 1-bit and 3-bit modes for optimal performance
+- **Region Optimization**: Merges overlapping dirty regions to minimize update operations
+
+### Widget Integration
+
+Widgets can be adapted to work with the compositor by extending `CompositorWidget` instead of `Widget`:
+
+```cpp
+class MyCompositorWidget : public CompositorWidget {
+public:
+    MyCompositorWidget(DisplayCompositor& compositor) : CompositorWidget(compositor) {}
+
+protected:
+    void renderToSurface(VirtualSurface* surface, const LayoutRegion& region) override {
+        // Draw to virtual surface instead of directly to display
+        surface->setCursor(region.x + 10, region.y + 10);
+        surface->setTextSize(2);
+        surface->print("Hello World");
+    }
+};
+```
+
+### Performance Optimizations
+
+- **Virtual Surface Buffering**: Eliminates flickering and reduces display update frequency
+- **Intelligent Partial Updates**: Uses Inkplate's partial update capability efficiently
+- **Region Merging**: Combines adjacent dirty regions to reduce the number of update operations
+- **Mode Switching**: Automatically switches display modes for optimal performance
 
 ## Available Make Targets
 

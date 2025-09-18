@@ -1,7 +1,8 @@
 #include "LayoutManager.h"
+#include <vector>
 
 LayoutManager::LayoutManager()
-    : display(INKPLATE_3BIT), lastUpdate(0) {
+    : display(INKPLATE_3BIT), compositor(nullptr), lastUpdate(0) {
 
     // Initialize config manager
     configManager = new ConfigManager();
@@ -9,6 +10,7 @@ LayoutManager::LayoutManager()
 
 LayoutManager::~LayoutManager() {
     delete configManager;
+    delete compositor;
     delete displayManager;
     delete wifiManager;
     delete imageWidget;
@@ -39,7 +41,9 @@ void LayoutManager::begin() {
     // Calculate layout regions based on config
     calculateLayoutRegions();
 
-    // Create display manager
+    // Create compositor and display manager
+    compositor = new DisplayCompositor(display);
+    compositor->begin();
     displayManager = new DisplayManager(display);
 
     // Create WiFi manager with config values
@@ -217,9 +221,9 @@ void LayoutManager::handleComponentUpdates() {
             Serial.println("Drawing layout borders...");
             drawLayoutBorders();
 
-            // Use full update for reliability
-            Serial.println("Performing full display update...");
-            displayManager->update();
+            // Use smart partial update for better performance
+            Serial.println("Performing smart partial update...");
+            displayManager->smartPartialUpdate();
 
             Serial.println("Time and battery widgets updated");
         }
@@ -261,22 +265,25 @@ bool LayoutManager::ensureConnectivity() {
 
 
 void LayoutManager::renderAllWidgets() {
-    Serial.println("Rendering all widgets in their layout regions...");
+    Serial.println("Rendering all widgets (hybrid mode - direct rendering for now)...");
 
-    // Render each widget in its designated region
+    // For now, use direct rendering since existing widgets haven't been migrated
+    // TODO: Migrate widgets to use compositor for better performance
+
+    // Render each widget directly to display (original approach)
     imageWidget->render(imageRegion);
     nameWidget->render(nameRegion);
     timeWidget->render(timeRegion);
     weatherWidget->render(weatherRegion);
     batteryWidget->render(batteryRegion);
 
-    // Draw layout borders and separators
+    // Draw layout borders directly to display
     drawLayoutBorders();
 
     // Single display update for the entire layout
     displayManager->update();
 
-    Serial.println("Widget rendering complete");
+    Serial.println("Direct widget rendering complete");
 }
 
 void LayoutManager::clearRegion(const LayoutRegion& region) {
