@@ -31,24 +31,40 @@ void setup() {
 void loop() {
     layoutManager.loop();
 
-    // Check if we should enter deep sleep
+    // Track activity for deep sleep
     static unsigned long lastActivity = millis();
+    static unsigned long cachedShortestInterval = 0;
+    static unsigned long lastConfigCheck = 0;
 
-    // If no updates needed for 10 minutes, enter deep sleep
-    if (millis() - lastActivity > 600000) { // 10 minutes
-        Serial.println("Entering deep sleep mode...");
+    // Check if deep sleep is enabled and we should enter it
+    if (layoutManager.shouldEnterDeepSleep()) {
+        // Cache configuration values to avoid repeated calls
+        unsigned long currentTime = millis();
+        if (cachedShortestInterval == 0 || currentTime - lastConfigCheck > 60000) { // Refresh cache every minute
+            cachedShortestInterval = layoutManager.getShortestUpdateInterval();
+            lastConfigCheck = currentTime;
+        }
 
-        // Setup wake sources
-        PowerManager::enableWakeOnButton(36); // Wake button
-        PowerManager::enableWakeOnTimer(3600000); // Wake every hour
+        unsigned long sleepThreshold = layoutManager.getDeepSleepThreshold();
 
-        // Enter deep sleep
-        PowerManager::enterDeepSleep();
+        // If no updates needed for the threshold time, enter deep sleep
+        if (currentTime - lastActivity > sleepThreshold) {
+            Serial.println("Entering deep sleep mode...");
+            Serial.printf("Sleep threshold: %lu ms, shortest update interval: %lu ms\n", sleepThreshold, cachedShortestInterval);
+
+            // Setup wake sources using config values
+            int wakeButtonPin = layoutManager.getWakeButtonPin();
+            PowerManager::enableWakeOnButton(wakeButtonPin);
+            PowerManager::enableWakeOnTimer(cachedShortestInterval); // Wake based on shortest update interval
+
+            // Enter deep sleep
+            PowerManager::enterDeepSleep();
+        }
     }
 
-    // Debug: Print status every 30 seconds
+    // Debug: Print status every 2 minutes (reduced spam)
     static unsigned long lastStatusPrint = 0;
-    if (millis() - lastStatusPrint > 30000) {
+    if (millis() - lastStatusPrint > 120000) { // 2 minutes instead of 30 seconds
         Serial.println("=== STATUS CHECK ===");
         Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
         if (WiFi.status() == WL_CONNECTED) {

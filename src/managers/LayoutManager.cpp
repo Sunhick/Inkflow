@@ -1,7 +1,7 @@
 #include "LayoutManager.h"
 
 LayoutManager::LayoutManager()
-    : display(INKPLATE_1BIT), lastUpdate(0) {
+    : display(INKPLATE_3BIT), lastUpdate(0) {
 
     // Initialize config manager
     configManager = new ConfigManager();
@@ -171,10 +171,10 @@ void LayoutManager::handleComponentUpdates() {
     // Check if time or battery widgets need updates
     bool needsUpdate = false;
 
-    // Debug: Print current time and intervals every 30 seconds
+    // Debug: Print current time and intervals every 5 minutes (reduced spam)
     static unsigned long lastDebugPrint = 0;
     unsigned long currentTime = millis();
-    if (currentTime - lastDebugPrint > 30000) {
+    if (currentTime - lastDebugPrint > 300000) { // 5 minutes instead of 30 seconds
         Serial.printf("=== UPDATE CHECK DEBUG ===\n");
         Serial.printf("Current time: %lu ms\n", currentTime);
         Serial.printf("Time update interval: %lu ms\n", configManager->getConfig().timeUpdateMs);
@@ -204,14 +204,22 @@ void LayoutManager::handleComponentUpdates() {
             }
 
             // Render only the widgets that need updating
-            timeWidget->render(timeRegion);
-            batteryWidget->render(batteryRegion);
+            if (timeWidget->shouldUpdate()) {
+                Serial.println("Rendering time widget...");
+                timeWidget->render(timeRegion);
+            }
+            if (batteryWidget->shouldUpdate()) {
+                Serial.println("Rendering battery widget...");
+                batteryWidget->render(batteryRegion);
+            }
 
             // Draw layout borders to maintain clean appearance
+            Serial.println("Drawing layout borders...");
             drawLayoutBorders();
 
-            // Use partial update for faster refresh
-            displayManager->partialUpdate();
+            // Use full update for reliability
+            Serial.println("Performing full display update...");
+            displayManager->update();
 
             Serial.println("Time and battery widgets updated");
         }
@@ -341,4 +349,38 @@ void LayoutManager::forceTimeAndBatteryUpdate() {
 
         Serial.println("Time and battery widgets force updated");
     }
+}
+
+unsigned long LayoutManager::getShortestUpdateInterval() const {
+    if (!configManager) return 3600000; // Default 1 hour if no config
+
+    const AppConfig& config = configManager->getConfig();
+
+    // Find the shortest update interval among all widgets
+    unsigned long shortest = config.imageRefreshMs;
+    shortest = min(shortest, config.timeUpdateMs);
+    shortest = min(shortest, config.batteryUpdateMs);
+
+    return shortest;
+}
+
+int LayoutManager::getWakeButtonPin() const {
+    if (!configManager) return 36; // Default pin if no config
+
+    const AppConfig& config = configManager->getConfig();
+    return config.wakeButtonPin;
+}
+
+bool LayoutManager::shouldEnterDeepSleep() const {
+    if (!configManager) return false; // Don't sleep if no config
+
+    const AppConfig& config = configManager->getConfig();
+    return config.enableDeepSleep;
+}
+
+unsigned long LayoutManager::getDeepSleepThreshold() const {
+    if (!configManager) return 600000UL; // Default 10 minutes if no config
+
+    const AppConfig& config = configManager->getConfig();
+    return config.deepSleepThresholdMs;
 }

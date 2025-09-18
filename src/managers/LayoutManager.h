@@ -29,6 +29,12 @@ public:
     LayoutRegion getWeatherRegion() const { return weatherRegion; }
     LayoutRegion getBatteryRegion() const { return batteryRegion; }
 
+    // Configuration getters for power management
+    unsigned long getShortestUpdateInterval() const;
+    int getWakeButtonPin() const;
+    bool shouldEnterDeepSleep() const;
+    unsigned long getDeepSleepThreshold() const;
+
 private:
     // Core components
     Inkplate display;

@@ -64,6 +64,11 @@ bool ConfigManager::loadConfig() {
 
     config.wakeButtonPin = doc["hardware"]["wakeButtonPin"] | 36;
 
+    config.enableDeepSleep = doc["power"]["enableDeepSleep"] | true;
+    config.deepSleepThresholdMs = doc["power"]["deepSleepThresholdMs"] | 600000UL; // 10 minutes default
+
+    config.usePartialUpdates = doc["display"]["usePartialUpdates"] | true; // Enable partial updates by default
+
     Serial.println("Configuration loaded successfully");
     Serial.printf("WiFi SSID: %s\n", config.wifiSSID.c_str());
     Serial.printf("Server URL: %s\n", config.serverURL.c_str());
@@ -101,6 +106,13 @@ bool ConfigManager::saveConfig() {
     // Hardware configuration
     doc["hardware"]["wakeButtonPin"] = config.wakeButtonPin;
 
+    // Power management configuration
+    doc["power"]["enableDeepSleep"] = config.enableDeepSleep;
+    doc["power"]["deepSleepThresholdMs"] = config.deepSleepThresholdMs;
+
+    // Display update configuration
+    doc["display"]["usePartialUpdates"] = config.usePartialUpdates;
+
     fs::File file = SPIFFS.open(CONFIG_FILE, "w");
     if (!file) {
         Serial.println("Failed to create config file");
@@ -137,6 +149,11 @@ void ConfigManager::setDefaults() {
     config.familyName = "Family";
 
     config.wakeButtonPin = 36;
+
+    config.enableDeepSleep = true;
+    config.deepSleepThresholdMs = 600000UL; // 10 minutes
+
+    config.usePartialUpdates = true; // Enable partial updates by default
 }
 bool ConfigManager::isConfigured() const {
     // Check if config file existed when loaded

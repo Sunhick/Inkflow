@@ -27,6 +27,13 @@ struct AppConfig {
 
     // Hardware Configuration
     int wakeButtonPin;
+
+    // Power Management Configuration
+    bool enableDeepSleep;
+    unsigned long deepSleepThresholdMs;
+
+    // Display Update Configuration
+    bool usePartialUpdates;
 };
 
 class ConfigManager {

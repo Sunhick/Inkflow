@@ -1,10 +1,11 @@
 #include "DisplayManager.h"
 
-DisplayManager::DisplayManager(Inkplate &display) : display(display) {}
+DisplayManager::DisplayManager(Inkplate &display) : display(display), preferredDisplayMode(INKPLATE_3BIT) {}
 
 void DisplayManager::initialize() {
     display.begin();
-    display.setDisplayMode(INKPLATE_3BIT); // Faster than 3BIT mode
+    preferredDisplayMode = INKPLATE_3BIT;
+    display.setDisplayMode(preferredDisplayMode); // 3-bit mode for better grayscale
 
     // Enable text smoothing and wrapping for better rendering
     display.setTextWrap(true);
@@ -61,11 +62,54 @@ void DisplayManager::clear() {
 }
 
 void DisplayManager::update() {
+    Serial.println("DisplayManager: Performing full display update...");
     display.display();
+    Serial.println("DisplayManager: Display update complete");
 }
 
 void DisplayManager::partialUpdate() {
+    Serial.println("DisplayManager: Performing partial display update...");
+
+    // Switch to 1-bit mode for partial updates (required for Inkplate)
+    if (display.getDisplayMode() != INKPLATE_1BIT) {
+        Serial.println("DisplayManager: Switching to 1-bit mode for partial update");
+        display.setDisplayMode(INKPLATE_1BIT);
+    }
+
     display.partialUpdate();
+
+    // Switch back to preferred mode
+    if (preferredDisplayMode != INKPLATE_1BIT) {
+        Serial.println("DisplayManager: Switching back to preferred display mode");
+        display.setDisplayMode(preferredDisplayMode);
+    }
+
+    Serial.println("DisplayManager: Partial update complete");
+}
+
+void DisplayManager::smartPartialUpdate() {
+    Serial.println("DisplayManager: Performing smart partial update...");
+
+    // For small widget updates, use partial update with mode switching
+    // This is optimized for time/battery widget updates
+
+    // Store current mode
+    int currentMode = display.getDisplayMode();
+
+    // Switch to 1-bit for partial update
+    if (currentMode != INKPLATE_1BIT) {
+        display.setDisplayMode(INKPLATE_1BIT);
+    }
+
+    // Perform partial update
+    display.partialUpdate();
+
+    // Restore original mode
+    if (currentMode != INKPLATE_1BIT) {
+        display.setDisplayMode(currentMode);
+    }
+
+    Serial.println("DisplayManager: Smart partial update complete");
 }
 
 void DisplayManager::setTitle(const char* title) {

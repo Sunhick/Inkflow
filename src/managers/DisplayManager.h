@@ -13,11 +13,13 @@ public:
     void showImageError(const char* url, int failures, int retrySeconds, const char* ipAddress, int signalStrength);
     void clear();
     void update();
-    void partialUpdate(); // Faster partial refresh
+    void partialUpdate(); // Faster partial refresh (switches to 1-bit temporarily)
+    void smartPartialUpdate(); // Optimized partial update for widget regions
     void setupSmoothText(int size, int color = 0); // Helper for smooth text rendering
 
 private:
     Inkplate &display;
+    int preferredDisplayMode;
 
     void setTitle(const char* title);
     void setMessage(const char* message, int y = 40);
