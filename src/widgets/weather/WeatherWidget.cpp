@@ -53,6 +53,8 @@ void WeatherWidget::fetchWeatherData() {
     Serial.printf("Weather URL: %s\n", url.c_str());
 
     http.begin(url);
+    http.setTimeout(5000); // 5 second timeout
+    http.setReuse(false); // Don't keep connection alive
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
@@ -173,7 +175,7 @@ void WeatherWidget::drawWeatherDisplay(const LayoutRegion& region) {
     display.print("%");
 }
 
-String WeatherWidget::getWeatherDescription(int weatherCode) {
+const char* WeatherWidget::getWeatherDescription(int weatherCode) {
     switch (weatherCode) {
         case 0: return "Clear Sky";
         case 1: return "Mainly Clear";

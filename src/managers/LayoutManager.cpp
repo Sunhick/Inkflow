@@ -1,7 +1,7 @@
 #include "LayoutManager.h"
 
 LayoutManager::LayoutManager()
-    : display(INKPLATE_3BIT), lastUpdate(0) {
+    : display(INKPLATE_1BIT), lastUpdate(0) {
 
     // Initialize config manager
     configManager = new ConfigManager();
@@ -210,8 +210,8 @@ void LayoutManager::handleComponentUpdates() {
             // Draw layout borders to maintain clean appearance
             drawLayoutBorders();
 
-            // Update display
-            displayManager->update();
+            // Use partial update for faster refresh
+            displayManager->partialUpdate();
 
             Serial.println("Time and battery widgets updated");
         }

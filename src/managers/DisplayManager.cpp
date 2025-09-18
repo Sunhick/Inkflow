@@ -4,7 +4,7 @@ DisplayManager::DisplayManager(Inkplate &display) : display(display) {}
 
 void DisplayManager::initialize() {
     display.begin();
-    display.setDisplayMode(INKPLATE_3BIT);
+    display.setDisplayMode(INKPLATE_3BIT); // Faster than 3BIT mode
 
     // Enable text smoothing and wrapping for better rendering
     display.setTextWrap(true);
@@ -62,6 +62,10 @@ void DisplayManager::clear() {
 
 void DisplayManager::update() {
     display.display();
+}
+
+void DisplayManager::partialUpdate() {
+    display.partialUpdate();
 }
 
 void DisplayManager::setTitle(const char* title) {

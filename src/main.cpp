@@ -1,4 +1,5 @@
 #include "managers/LayoutManager.h"
+#include "managers/PowerManager.h"
 
 LayoutManager layoutManager;
 
@@ -29,7 +30,21 @@ void setup() {
 
 void loop() {
     layoutManager.loop();
-    // handleWakeButton();
+
+    // Check if we should enter deep sleep
+    static unsigned long lastActivity = millis();
+
+    // If no updates needed for 10 minutes, enter deep sleep
+    if (millis() - lastActivity > 600000) { // 10 minutes
+        Serial.println("Entering deep sleep mode...");
+
+        // Setup wake sources
+        PowerManager::enableWakeOnButton(36); // Wake button
+        PowerManager::enableWakeOnTimer(3600000); // Wake every hour
+
+        // Enter deep sleep
+        PowerManager::enterDeepSleep();
+    }
 
     // Debug: Print status every 30 seconds
     static unsigned long lastStatusPrint = 0;
@@ -43,6 +58,7 @@ void loop() {
         Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
         Serial.printf("Uptime: %lu seconds\n", millis() / 1000);
         lastStatusPrint = millis();
+        lastActivity = millis(); // Reset activity timer
     }
 }
 

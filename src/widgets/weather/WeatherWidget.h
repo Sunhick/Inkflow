@@ -45,7 +45,7 @@ private:
     void drawWeatherDisplay(const LayoutRegion& region);
     String buildWeatherURL();
     void parseWeatherResponse(String response);
-    String getWeatherDescription(int weatherCode);
+    const char* getWeatherDescription(int weatherCode);
 };
 
 #endif

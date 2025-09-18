@@ -13,6 +13,7 @@ public:
     void showImageError(const char* url, int failures, int retrySeconds, const char* ipAddress, int signalStrength);
     void clear();
     void update();
+    void partialUpdate(); // Faster partial refresh
     void setupSmoothText(int size, int color = 0); // Helper for smooth text rendering
 
 private:
