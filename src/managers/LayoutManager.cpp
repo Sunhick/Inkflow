@@ -1,4 +1,9 @@
 #include "LayoutManager.h"
+#include "../widgets/image/ImageWidget.h"
+#include "../widgets/battery/BatteryWidget.h"
+#include "../widgets/time/TimeWidget.h"
+#include "../widgets/weather/WeatherWidget.h"
+#include "../widgets/name/NameWidget.h"
 
 // Helper function for C++11 compatibility (make_unique not available until C++14)
 template<typename T, typename... Args>
@@ -48,8 +53,8 @@ void LayoutManager::begin() {
     // Create WiFi manager with config values
     wifiManager = new WiFiManager(config.wifiSSID.c_str(), config.wifiPassword.c_str());
 
-    // Tell regions what type of widgets they should create
-    assignWidgetTypesToRegions();
+    // Create widgets and assign them to regions
+    createAndAssignWidgets();
 
     initializeComponents();
     performInitialSetup();
@@ -57,78 +62,127 @@ void LayoutManager::begin() {
 
 void LayoutManager::calculateLayoutRegions() {
     const AppConfig& config = configManager->getConfig();
-    int displayWidth = config.displayWidth;
-    int displayHeight = display.height();
 
-    Serial.printf("Display dimensions: %dx%d\n", displayWidth, displayHeight);
+    Serial.printf("Display dimensions: %dx%d\n", config.displayWidth, config.displayHeight);
 
     // Clear existing regions
     regions.clear();
+    regionMap.clear();
 
-    // Calculate sidebar width from config
-    int sidebarWidth = (displayWidth * config.sidebarWidthPct) / 100;
-    int imageAreaWidth = displayWidth - sidebarWidth;
-
-    // Create regions using the new collection system
-    // Order must match RegionIndex enum
-
-    // SIDEBAR_REGION = 0
-    regions.push_back(make_unique_helper<LayoutRegion>(0, 0, sidebarWidth, displayHeight));
-
-    // IMAGE_REGION = 1
-    regions.push_back(make_unique_helper<LayoutRegion>(sidebarWidth, 0, imageAreaWidth, displayHeight));
-
-    // Divide sidebar into four sections (name, time, weather, battery)
-    int sectionHeight = displayHeight / 4;
-
-    // NAME_REGION = 2
-    regions.push_back(make_unique_helper<LayoutRegion>(0, 0, sidebarWidth, sectionHeight));
-
-    // TIME_REGION = 3
-    regions.push_back(make_unique_helper<LayoutRegion>(0, sectionHeight, sidebarWidth, sectionHeight));
-
-    // WEATHER_REGION = 4
-    regions.push_back(make_unique_helper<LayoutRegion>(0, sectionHeight * 2, sidebarWidth, sectionHeight));
-
-    // BATTERY_REGION = 5
-    regions.push_back(make_unique_helper<LayoutRegion>(0, sectionHeight * 3, sidebarWidth, displayHeight - (sectionHeight * 3)));
-
-    Serial.printf("Layout regions calculated:\n");
-    Serial.printf("  Sidebar: %dx%d at (%d,%d)\n", getSidebarRegion()->getWidth(), getSidebarRegion()->getHeight(), getSidebarRegion()->getX(), getSidebarRegion()->getY());
-    Serial.printf("  Image: %dx%d at (%d,%d)\n", getImageRegion()->getWidth(), getImageRegion()->getHeight(), getImageRegion()->getX(), getImageRegion()->getY());
-    Serial.printf("  Name: %dx%d at (%d,%d)\n", getNameRegion()->getWidth(), getNameRegion()->getHeight(), getNameRegion()->getX(), getNameRegion()->getY());
-    Serial.printf("  Time: %dx%d at (%d,%d)\n", getTimeRegion()->getWidth(), getTimeRegion()->getHeight(), getTimeRegion()->getX(), getTimeRegion()->getY());
-    Serial.printf("  Weather: %dx%d at (%d,%d)\n", getWeatherRegion()->getWidth(), getWeatherRegion()->getHeight(), getWeatherRegion()->getX(), getWeatherRegion()->getY());
-    Serial.printf("  Battery: %dx%d at (%d,%d)\n", getBatteryRegion()->getWidth(), getBatteryRegion()->getHeight(), getBatteryRegion()->getX(), getBatteryRegion()->getY());
+    Serial.println("Regions will be created dynamically based on widget requirements");
 }
 
-void LayoutManager::assignWidgetTypesToRegions() {
+void LayoutManager::createAndAssignWidgets() {
     const AppConfig& config = configManager->getConfig();
 
-    Serial.println("Assigning widget types to regions...");
+    Serial.println("Creating widgets and regions based on configuration...");
 
-    // Tell each region what type of widget it should create
-    if (getImageRegion()) {
-        getImageRegion()->setWidgetType(WidgetType::IMAGE, display, config);
+    // Create and assign weather widgets
+    for (const auto& weatherConfig : config.weatherWidgets) {
+        WeatherWidget* widget = new WeatherWidget(display,
+                                                 weatherConfig.latitude,
+                                                 weatherConfig.longitude,
+                                                 weatherConfig.city,
+                                                 weatherConfig.units);
+
+        LayoutRegion* region = getOrCreateRegion(weatherConfig.region);
+        region->addWidget(widget);
+
+        // Using template-based type name instead of hardcoded string
+        String typeName = WidgetTypeRegistry::getTypeName<WeatherWidget>();
+        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), weatherConfig.region.c_str());
     }
 
-    if (getNameRegion()) {
-        getNameRegion()->setWidgetType(WidgetType::NAME, display, config);
+    // Create and assign name widgets
+    for (const auto& nameConfig : config.nameWidgets) {
+        NameWidget* widget = new NameWidget(display, nameConfig.familyName);
+
+        LayoutRegion* region = getOrCreateRegion(nameConfig.region);
+        region->addWidget(widget);
+
+        // Using template-based type name instead of hardcoded string
+        String typeName = WidgetTypeRegistry::getTypeName<NameWidget>();
+        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), nameConfig.region.c_str());
     }
 
-    if (getTimeRegion()) {
-        getTimeRegion()->setWidgetType(WidgetType::TIME, display, config);
+    // Create and assign dateTime widgets
+    for (const auto& dateTimeConfig : config.dateTimeWidgets) {
+        TimeWidget* widget = new TimeWidget(display, dateTimeConfig.timeUpdateMs);
+
+        LayoutRegion* region = getOrCreateRegion(dateTimeConfig.region);
+        region->addWidget(widget);
+
+        // Using template-based type name instead of hardcoded string
+        String typeName = WidgetTypeRegistry::getTypeName<TimeWidget>();
+        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), dateTimeConfig.region.c_str());
     }
 
-    if (getWeatherRegion()) {
-        getWeatherRegion()->setWidgetType(WidgetType::WEATHER, display, config);
+    // Create and assign battery widgets
+    for (const auto& batteryConfig : config.batteryWidgets) {
+        BatteryWidget* widget = new BatteryWidget(display, batteryConfig.batteryUpdateMs);
+
+        LayoutRegion* region = getOrCreateRegion(batteryConfig.region);
+        region->addWidget(widget);
+
+        // Using template-based type name instead of hardcoded string
+        String typeName = WidgetTypeRegistry::getTypeName<BatteryWidget>();
+        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), batteryConfig.region.c_str());
     }
 
-    if (getBatteryRegion()) {
-        getBatteryRegion()->setWidgetType(WidgetType::BATTERY, display, config);
+    // Create and assign image widgets
+    for (const auto& imageConfig : config.imageWidgets) {
+        ImageWidget* widget = new ImageWidget(display, config.serverURL.c_str());
+
+        LayoutRegion* region = getOrCreateRegion(imageConfig.region);
+        region->addWidget(widget);
+
+        // Using template-based type name instead of hardcoded string
+        String typeName = WidgetTypeRegistry::getTypeName<ImageWidget>();
+        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), imageConfig.region.c_str());
     }
 
-    Serial.println("Widget type assignment complete");
+    Serial.println("Widget and region creation complete");
+}
+
+LayoutRegion* LayoutManager::getRegionById(const String& regionId) const {
+    auto it = regionMap.find(regionId);
+    if (it != regionMap.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
+LayoutRegion* LayoutManager::getOrCreateRegion(const String& regionId) {
+    // Check if region already exists
+    LayoutRegion* existingRegion = getRegionById(regionId);
+    if (existingRegion) {
+        return existingRegion;
+    }
+
+    // Get region layout info from config
+    RegionConfig regionConfig = configManager->getRegionConfig(regionId);
+
+    // Create new region
+    auto region = make_unique_helper<LayoutRegion>(
+        regionConfig.x,
+        regionConfig.y,
+        regionConfig.width,
+        regionConfig.height
+    );
+
+    Serial.printf("Created region %s: %dx%d at (%d,%d)\n",
+                 regionId.c_str(),
+                 regionConfig.width, regionConfig.height,
+                 regionConfig.x, regionConfig.y);
+
+    // Store region in map for easy access by ID
+    LayoutRegion* regionPtr = region.get();
+    regionMap[regionId] = regionPtr;
+
+    // Add to regions vector
+    regions.push_back(std::move(region));
+
+    return regionPtr;
 }
 
 // Region collection management methods
@@ -158,30 +212,7 @@ LayoutRegion* LayoutManager::getRegion(size_t index) const {
     return regions[index].get();
 }
 
-// Legacy region getters for backward compatibility
-LayoutRegion* LayoutManager::getImageRegion() const {
-    return getRegion(IMAGE_REGION);
-}
-
-LayoutRegion* LayoutManager::getSidebarRegion() const {
-    return getRegion(SIDEBAR_REGION);
-}
-
-LayoutRegion* LayoutManager::getNameRegion() const {
-    return getRegion(NAME_REGION);
-}
-
-LayoutRegion* LayoutManager::getTimeRegion() const {
-    return getRegion(TIME_REGION);
-}
-
-LayoutRegion* LayoutManager::getWeatherRegion() const {
-    return getRegion(WEATHER_REGION);
-}
-
-LayoutRegion* LayoutManager::getBatteryRegion() const {
-    return getRegion(BATTERY_REGION);
-}
+// Legacy region getters removed - LayoutManager is now fully data-driven
 
 void LayoutManager::initializeComponents() {
     Serial.println("Initializing components...");
@@ -228,11 +259,7 @@ void LayoutManager::performInitialSetup() {
         // Render all regions (each region will render its own widgets)
         renderAllRegions();
     } else {
-        Serial.println("WiFi connection failed - showing error");
-        if (imageWidget && getImageRegion()) {
-            // Use legacy widget API for error display
-            getImageRegion()->setWidget(imageWidget);
-        }
+        Serial.println("WiFi connection failed - widgets should handle error display");
         renderAllRegions();
     }
 
@@ -243,7 +270,7 @@ void LayoutManager::handleScheduledUpdate() {
     // Automatic updates every 24 hours + manual refresh via WAKE button
     unsigned long currentTime = millis();
 
-    if (currentTime - lastUpdate >= configManager->getConfig().imageRefreshMs) {
+    if (currentTime - lastUpdate >= getShortestUpdateInterval()) {
         Serial.println("Starting scheduled update...");
 
         if (ensureConnectivity()) {
@@ -261,36 +288,20 @@ void LayoutManager::handleScheduledUpdate() {
 }
 
 void LayoutManager::handleWidgetUpdates() {
-    // Check if regions with widgets need updates
+    // Check if any regions need updates
     bool needsUpdate = false;
 
-    // Check time widget
-    if (getTimeRegion() && getTimeRegion()->getWidgetCount() > 0) {
-        Widget* timeWidget = getTimeRegion()->getWidget(0);
-        if (timeWidget && timeWidget->shouldUpdate()) {
-            Serial.println("Time widget needs update");
-            if (ensureConnectivity()) {
-                // For time widget, we need to call syncTimeWithNTP
-                // This is a limitation of the current architecture - we might need a better way
-                getTimeRegion()->markDirty();
-                needsUpdate = true;
-            }
-        }
-    }
-
-    // Check battery widget
-    if (getBatteryRegion() && getBatteryRegion()->getWidgetCount() > 0) {
-        Widget* batteryWidget = getBatteryRegion()->getWidget(0);
-        if (batteryWidget && batteryWidget->shouldUpdate()) {
-            Serial.println("Battery widget needs update");
-            getBatteryRegion()->markDirty();
+    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+        LayoutRegion* region = it->get();
+        if (region && region->needsUpdate()) {
             needsUpdate = true;
+            break;
         }
     }
 
-    // Only update display if widgets actually need updating
+    // Only update display if regions actually need updating
     if (needsUpdate) {
-        Serial.println("Rendering updated widgets...");
+        Serial.println("Rendering updated regions...");
         renderAllRegions();
     }
 }
@@ -356,27 +367,34 @@ void LayoutManager::clearRegion(const LayoutRegion& region) {
 }
 
 void LayoutManager::drawLayoutBorders() {
-    // Draw vertical separator between sidebar and image area
-    int separatorX = getSidebarRegion()->getWidth() - 1;
-    display.drawLine(separatorX, 0, separatorX, display.height(), 0);
-    display.drawLine(separatorX + 1, 0, separatorX + 1, display.height(), 0);
+    // Only draw borders if enabled in configuration
+    if (!configManager || !configManager->getConfig().showRegionBorders) {
+        return;
+    }
 
-    // Draw horizontal separators between sidebar sections
-    int nameBottom = getNameRegion()->getY() + getNameRegion()->getHeight() - 1;
-    int timeBottom = getTimeRegion()->getY() + getTimeRegion()->getHeight() - 1;
-    int weatherBottom = getWeatherRegion()->getY() + getWeatherRegion()->getHeight() - 1;
+    // Data-driven border drawing - iterate through regions and draw borders
+    // This is now generic and doesn't assume specific layout structure
 
-    // Line between name and time sections
-    display.drawLine(5, nameBottom, getSidebarRegion()->getWidth() - 5, nameBottom, 0);
-    display.drawLine(5, nameBottom + 1, getSidebarRegion()->getWidth() - 5, nameBottom + 1, 0);
+    for (size_t i = 0; i < regions.size(); ++i) {
+        LayoutRegion* region = regions[i].get();
+        if (!region) continue;
 
-    // Line between time and weather sections
-    display.drawLine(5, timeBottom, getSidebarRegion()->getWidth() - 5, timeBottom, 0);
-    display.drawLine(5, timeBottom + 1, getSidebarRegion()->getWidth() - 5, timeBottom + 1, 0);
+        // Draw region border
+        int x = region->getX();
+        int y = region->getY();
+        int w = region->getWidth();
+        int h = region->getHeight();
 
-    // Line between weather and battery sections
-    display.drawLine(5, weatherBottom, getSidebarRegion()->getWidth() - 5, weatherBottom, 0);
-    display.drawLine(5, weatherBottom + 1, getSidebarRegion()->getWidth() - 5, weatherBottom + 1, 0);
+        // Draw a simple border around each region (1 pixel thick)
+        // Top border
+        display.drawLine(x, y, x + w - 1, y, 0);
+        // Bottom border
+        display.drawLine(x, y + h - 1, x + w - 1, y + h - 1, 0);
+        // Left border
+        display.drawLine(x, y, x, y + h - 1, 0);
+        // Right border
+        display.drawLine(x + w - 1, y, x + w - 1, y + h - 1, 0);
+    }
 }
 
 void LayoutManager::forceRefresh() {
@@ -410,8 +428,22 @@ unsigned long LayoutManager::getShortestUpdateInterval() const {
 
     const AppConfig& config = configManager->getConfig();
 
-    // Return the main refresh interval - widgets handle their own update intervals
-    return config.imageRefreshMs;
+    // Find the shortest update interval among all widgets
+    unsigned long shortest = 3600000UL; // Default 1 hour
+
+    for (const auto& imageConfig : config.imageWidgets) {
+        shortest = min(shortest, imageConfig.imageRefreshMs);
+    }
+
+    for (const auto& dateTimeConfig : config.dateTimeWidgets) {
+        shortest = min(shortest, dateTimeConfig.timeUpdateMs);
+    }
+
+    for (const auto& batteryConfig : config.batteryWidgets) {
+        shortest = min(shortest, batteryConfig.batteryUpdateMs);
+    }
+
+    return shortest;
 }
 
 int LayoutManager::getWakeButtonPin() const {

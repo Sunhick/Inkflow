@@ -9,15 +9,7 @@ class LayoutRegionImpl;
 class Inkplate;
 struct AppConfig;
 
-// Widget types that regions can create
-enum class WidgetType {
-    NONE,
-    IMAGE,
-    BATTERY,
-    TIME,
-    WEATHER,
-    NAME
-};
+
 
 // Layout region class with widget reference and dirty state tracking
 class LayoutRegion {
@@ -41,9 +33,7 @@ public:
     void setHeight(int newHeight) { height = newHeight; markDirty(); }
     void setBounds(int newX, int newY, int newWidth, int newHeight);
 
-    // Widget type management - regions create their own widgets
-    void setWidgetType(WidgetType type, Inkplate& display, const AppConfig& config);
-    WidgetType getWidgetType() const;
+
 
     // Widget collection management (using raw pointers for simplicity)
     size_t addWidget(Widget* widget);
@@ -83,7 +73,6 @@ private:
     int x, y, width, height;
     LayoutRegionImpl* impl; // PIMPL to hide widget collection implementation
     Widget* legacyWidget; // For backward compatibility
-    WidgetType widgetType;
     bool isDirty;
 };
 

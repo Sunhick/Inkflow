@@ -7,6 +7,7 @@
 #include "WiFiManager.h"
 #include <vector>
 #include <memory>
+#include <map>
 
 class LayoutManager {
 public:
@@ -29,13 +30,11 @@ public:
     std::vector<std::unique_ptr<LayoutRegion>>::const_iterator regionsBegin() const { return regions.begin(); }
     std::vector<std::unique_ptr<LayoutRegion>>::const_iterator regionsEnd() const { return regions.end(); }
 
-    // Legacy region getters for backward compatibility (returns pointers to regions in collection)
-    LayoutRegion* getImageRegion() const;
-    LayoutRegion* getSidebarRegion() const;
-    LayoutRegion* getNameRegion() const;
-    LayoutRegion* getTimeRegion() const;
-    LayoutRegion* getWeatherRegion() const;
-    LayoutRegion* getBatteryRegion() const;
+    // Region access by ID
+    LayoutRegion* getRegionById(const String& regionId) const;
+    LayoutRegion* getOrCreateRegion(const String& regionId);
+
+    // No more hardcoded region getters - use getRegionById() instead
 
     // Configuration getters for power management
     unsigned long getShortestUpdateInterval() const;
@@ -52,23 +51,14 @@ private:
 
     // Region collection system
     std::vector<std::unique_ptr<LayoutRegion>> regions;
-
-    // Region indices for quick access
-    enum RegionIndex {
-        SIDEBAR_REGION = 0,
-        IMAGE_REGION = 1,
-        NAME_REGION = 2,
-        TIME_REGION = 3,
-        WEATHER_REGION = 4,
-        BATTERY_REGION = 5
-    };
+    std::map<String, LayoutRegion*> regionMap; // For quick access by region ID
 
     // Configuration
     unsigned long lastUpdate;
 
     // Private methods
     void calculateLayoutRegions();
-    void assignWidgetTypesToRegions();
+    void createAndAssignWidgets();
     void initializeComponents();
     void performInitialSetup();
     void handleScheduledUpdate();

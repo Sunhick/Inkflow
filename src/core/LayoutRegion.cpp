@@ -8,18 +8,7 @@
 #include "../managers/ConfigManager.h"
 #include <vector>
 
-// Helper function to get widget type name for logging
-const char* getWidgetTypeName(WidgetType type) {
-    switch (type) {
-        case WidgetType::IMAGE: return "Image";
-        case WidgetType::BATTERY: return "Battery";
-        case WidgetType::TIME: return "Time";
-        case WidgetType::WEATHER: return "Weather";
-        case WidgetType::NAME: return "Name";
-        case WidgetType::NONE: return "None";
-        default: return "Unknown";
-    }
-}
+
 
 // PIMPL implementation to hide widget collection details
 class LayoutRegionImpl {
@@ -37,7 +26,7 @@ public:
 };
 
 LayoutRegion::LayoutRegion(int x, int y, int w, int h)
-    : x(x), y(y), width(w), height(h), impl(new LayoutRegionImpl()), legacyWidget(nullptr), widgetType(WidgetType::NONE), isDirty(true) {
+    : x(x), y(y), width(w), height(h), impl(new LayoutRegionImpl()), legacyWidget(nullptr), isDirty(true) {
 }
 
 LayoutRegion::~LayoutRegion() {
@@ -94,58 +83,7 @@ void LayoutRegion::clearWidgets() {
     }
 }
 
-// Widget type management - regions create their own widgets
-void LayoutRegion::setWidgetType(WidgetType type, Inkplate& display, const AppConfig& config) {
-    if (widgetType != type) {
-        widgetType = type;
 
-        // Clear existing widgets when changing type
-        clearWidgets();
-
-        // Create the appropriate widget based on type
-        Widget* widget = nullptr;
-
-        switch (type) {
-            case WidgetType::IMAGE:
-                widget = new ImageWidget(display, config.serverURL.c_str());
-                break;
-
-            case WidgetType::BATTERY:
-                widget = new BatteryWidget(display, config.batteryUpdateMs);
-                break;
-
-            case WidgetType::TIME:
-                widget = new TimeWidget(display, config.timeUpdateMs);
-                break;
-
-            case WidgetType::WEATHER:
-                widget = new WeatherWidget(display, config.weatherLatitude, config.weatherLongitude,
-                                         config.weatherCity, config.weatherUnits);
-                break;
-
-            case WidgetType::NAME:
-                widget = new NameWidget(display, config.familyName);
-                break;
-
-            case WidgetType::NONE:
-            default:
-                // No widget to create
-                break;
-        }
-
-        if (widget) {
-            addWidget(widget);
-            Serial.printf("Created %s widget for region at (%d,%d)\n",
-                         getWidgetTypeName(type), x, y);
-        }
-
-        markDirty();
-    }
-}
-
-WidgetType LayoutRegion::getWidgetType() const {
-    return widgetType;
-}
 
 void LayoutRegion::initializeWidgets() {
     // Initialize all widgets in this region
