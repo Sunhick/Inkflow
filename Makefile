@@ -74,6 +74,10 @@ devices:
 format:
 	find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 
+# Run unit tests
+test:
+	pio test --environment test
+
 # Help target
 help:
 	@echo "Available targets:"
@@ -92,6 +96,7 @@ help:
 	@echo "  info          - Show project information"
 	@echo "  devices       - List connected devices"
 	@echo "  format        - Format source code"
+	@echo "  test          - Run unit tests"
 	@echo "  help          - Show this help"
 	@echo ""
 	@echo "Configuration variables (can be set on command line):"
@@ -113,4 +118,4 @@ help:
 	@echo ""
 
 
-.PHONY: build upload upload-fs upload-all clean flash deploy-fs monitor upload-monitor update install info devices format help setup-config
+.PHONY: build upload upload-fs upload-all clean flash deploy-fs monitor upload-monitor update install info devices format test help setup-config
