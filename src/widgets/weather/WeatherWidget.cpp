@@ -22,7 +22,7 @@ bool WeatherWidget::shouldUpdate() {
 
 void WeatherWidget::render(const LayoutRegion& region) {
     Serial.printf("Rendering weather widget in region: %dx%d at (%d,%d)\n",
-                  region.width, region.height, region.x, region.y);
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region
     clearRegion(region);
@@ -119,8 +119,8 @@ void WeatherWidget::parseWeatherResponse(String response) {
 
 void WeatherWidget::drawWeatherDisplay(const LayoutRegion& region) {
     int margin = 10;
-    int labelX = region.x + margin;
-    int labelY = region.y + margin;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
 
     // Draw "WEATHER" title
     display.setCursor(labelX, labelY);

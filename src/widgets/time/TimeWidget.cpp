@@ -31,7 +31,7 @@ bool TimeWidget::shouldUpdate() {
 
 void TimeWidget::render(const LayoutRegion& region) {
     Serial.printf("Rendering time widget in region: %dx%d at (%d,%d)\n",
-                  region.width, region.height, region.x, region.y);
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region
     clearRegion(region);
@@ -91,8 +91,8 @@ void TimeWidget::syncTimeWithNTP() {
 
 void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
     int margin = 10;
-    int labelX = region.x + margin;
-    int labelY = region.y + margin;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
 
     // Draw "DATE & TIME" label
     display.setCursor(labelX, labelY);

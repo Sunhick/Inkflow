@@ -16,7 +16,7 @@ bool ImageWidget::shouldUpdate() {
 
 void ImageWidget::render(const LayoutRegion& region) {
     Serial.printf("=== IMAGE WIDGET RENDER START ===\n");
-    Serial.printf("Region: %dx%d at (%d,%d)\n", region.width, region.height, region.x, region.y);
+    Serial.printf("Region: %dx%d at (%d,%d)\n", region.getWidth(), region.getHeight(), region.getX(), region.getY());
     Serial.printf("Image URL: %s\n", imageUrl);
     Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
 
@@ -53,7 +53,7 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
     display.clearDisplay();
 
     // Try to draw the image - no loading messages, just attempt silently
-    bool success = display.drawImage(imageUrl, region.x, region.y, false, false);
+    bool success = display.drawImage(imageUrl, region.getX(), region.getY(), false, false);
 
     if (success) {
         Serial.println("Image downloaded and displayed successfully");
@@ -107,15 +107,15 @@ void ImageWidget::showErrorInRegion(const LayoutRegion& region, const char* titl
     Serial.printf("Details: %s\n", details ? details : "None");
 
     // Clear the region with a light gray background to make it visible
-    display.fillRect(region.x, region.y, region.width, region.height, 6);
+    display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 6);
 
     // Draw a border around the region
-    display.drawRect(region.x, region.y, region.width, region.height, 0);
-    display.drawRect(region.x + 1, region.y + 1, region.width - 2, region.height - 2, 0);
+    display.drawRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 0);
+    display.drawRect(region.getX() + 1, region.getY() + 1, region.getWidth() - 2, region.getHeight() - 2, 0);
 
     // Calculate center position within region
-    int centerX = region.x + region.width / 2;
-    int centerY = region.y + region.height / 2;
+    int centerX = region.getX() + region.getWidth() / 2;
+    int centerY = region.getY() + region.getHeight() / 2;
 
     // Draw error title
     display.setTextSize(3);
@@ -137,7 +137,7 @@ void ImageWidget::showErrorInRegion(const LayoutRegion& region, const char* titl
         display.setTextSize(1);
         // Split long details into multiple lines if needed
         String detailsStr = String(details);
-        int maxCharsPerLine = region.width / 6; // Approximate chars per line for size 1
+        int maxCharsPerLine = region.getWidth() / 6; // Approximate chars per line for size 1
 
         int y = centerY + 10;
         int startIdx = 0;
@@ -160,16 +160,16 @@ void ImageWidget::showImagePlaceholder(const LayoutRegion& region, const char* t
     Serial.printf("Showing image placeholder: %s - %s\n", title, subtitle);
 
     // Clear with light gray background
-    display.fillRect(region.x, region.y, region.width, region.height, 6);
+    display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 6);
 
     // Draw border
-    display.drawRect(region.x, region.y, region.width, region.height, 0);
-    display.drawRect(region.x + 1, region.y + 1, region.width - 2, region.height - 2, 0);
+    display.drawRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 0);
+    display.drawRect(region.getX() + 1, region.getY() + 1, region.getWidth() - 2, region.getHeight() - 2, 0);
 
     // Draw a simple image icon (rectangle with X)
     int iconSize = 100;
-    int iconX = region.x + (region.width - iconSize) / 2;
-    int iconY = region.y + 50;
+    int iconX = region.getX() + (region.getWidth() - iconSize) / 2;
+    int iconY = region.getY() + 50;
 
     display.drawRect(iconX, iconY, iconSize, iconSize, 0);
     display.drawLine(iconX, iconY, iconX + iconSize, iconY + iconSize, 0);
@@ -179,14 +179,14 @@ void ImageWidget::showImagePlaceholder(const LayoutRegion& region, const char* t
     display.setTextSize(3);
     display.setTextColor(0);
     int titleWidth = strlen(title) * 18;
-    display.setCursor(region.x + (region.width - titleWidth) / 2, iconY + iconSize + 30);
+    display.setCursor(region.getX() + (region.getWidth() - titleWidth) / 2, iconY + iconSize + 30);
     display.print(title);
 
     // Draw subtitle
     if (subtitle) {
         display.setTextSize(2);
         int subtitleWidth = strlen(subtitle) * 12;
-        display.setCursor(region.x + (region.width - subtitleWidth) / 2, iconY + iconSize + 70);
+        display.setCursor(region.getX() + (region.getWidth() - subtitleWidth) / 2, iconY + iconSize + 70);
         display.print(subtitle);
     }
 }
@@ -197,7 +197,7 @@ void ImageWidget::showDiagnosticsInRegion(const LayoutRegion& region, const char
     // Clear the region
     clearRegion(region);
 
-    int startY = region.y + 50;
+    int startY = region.getY() + 50;
     int lineHeight = 30;
     int currentY = startY;
 
@@ -205,18 +205,18 @@ void ImageWidget::showDiagnosticsInRegion(const LayoutRegion& region, const char
     display.setTextColor(0);
 
     // Title
-    display.setCursor(region.x + 20, currentY);
+    display.setCursor(region.getX() + 20, currentY);
     display.print("DIAGNOSTICS");
     currentY += lineHeight * 2;
 
     // IP Address
-    display.setCursor(region.x + 20, currentY);
+    display.setCursor(region.getX() + 20, currentY);
     display.print("IP: ");
     display.print(ipAddress);
     currentY += lineHeight;
 
     // Signal strength
-    display.setCursor(region.x + 20, currentY);
+    display.setCursor(region.getX() + 20, currentY);
     display.print("Signal: ");
     display.print(signalStrength);
     display.print(" dBm");
@@ -224,7 +224,7 @@ void ImageWidget::showDiagnosticsInRegion(const LayoutRegion& region, const char
 
     // Image URL
     display.setTextSize(1);
-    display.setCursor(region.x + 20, currentY);
+    display.setCursor(region.getX() + 20, currentY);
     display.print("URL: ");
     display.print(imageUrl);
 }

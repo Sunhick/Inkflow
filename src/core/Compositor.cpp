@@ -73,10 +73,10 @@ void Compositor::clearRegion(const LayoutRegion& region) {
     if (!virtualSurface) return;
 
     // Clamp region to surface bounds
-    int startX = std::max(0, region.x);
-    int startY = std::max(0, region.y);
-    int endX = std::min(surfaceWidth, region.x + region.width);
-    int endY = std::min(surfaceHeight, region.y + region.height);
+    int startX = std::max(0, region.getX());
+    int startY = std::max(0, region.getY());
+    int endX = std::min(surfaceWidth, region.getX() + region.getWidth());
+    int endY = std::min(surfaceHeight, region.getY() + region.getHeight());
 
     // Clear the region to white
     for (int y = startY; y < endY; y++) {
@@ -166,18 +166,18 @@ void Compositor::fillRect(int x, int y, int w, int h, uint8_t color) {
 
 void Compositor::markRegionChanged(const LayoutRegion& region) {
     // Validate region bounds
-    if (region.width <= 0 || region.height <= 0) return;
+    if (region.getWidth() <= 0 || region.getHeight() <= 0) return;
 
     // Clamp region to surface bounds
     LayoutRegion clampedRegion(
-        std::max(0, region.x),
-        std::max(0, region.y),
-        std::min(region.width, surfaceWidth - std::max(0, region.x)),
-        std::min(region.height, surfaceHeight - std::max(0, region.y))
+        std::max(0, region.getX()),
+        std::max(0, region.getY()),
+        std::min(region.getWidth(), surfaceWidth - std::max(0, region.getX())),
+        std::min(region.getHeight(), surfaceHeight - std::max(0, region.getY()))
     );
 
     // Skip if region is completely outside surface
-    if (clampedRegion.width <= 0 || clampedRegion.height <= 0) return;
+    if (clampedRegion.getWidth() <= 0 || clampedRegion.getHeight() <= 0) return;
 
     // Add to changed areas list
     changedAreas.push_back(clampedRegion);
@@ -185,10 +185,10 @@ void Compositor::markRegionChanged(const LayoutRegion& region) {
 
     // Mark dirty regions if tracking is enabled
     if (dirtyRegions) {
-        int startX = clampedRegion.x;
-        int startY = clampedRegion.y;
-        int endX = clampedRegion.x + clampedRegion.width;
-        int endY = clampedRegion.y + clampedRegion.height;
+        int startX = clampedRegion.getX();
+        int startY = clampedRegion.getY();
+        int endX = clampedRegion.getX() + clampedRegion.getWidth();
+        int endY = clampedRegion.getY() + clampedRegion.getHeight();
 
         for (int y = startY; y < endY; y++) {
             for (int x = startX; x < endX; x++) {
@@ -302,21 +302,21 @@ void Compositor::mergeOverlappingRegions() {
 
 bool Compositor::regionsOverlap(const LayoutRegion& a, const LayoutRegion& b) const {
     // Check if regions overlap or are adjacent (for merging efficiency)
-    int a_right = a.x + a.width;
-    int a_bottom = a.y + a.height;
-    int b_right = b.x + b.width;
-    int b_bottom = b.y + b.height;
+    int a_right = a.getX() + a.getWidth();
+    int a_bottom = a.getY() + a.getHeight();
+    int b_right = b.getX() + b.getWidth();
+    int b_bottom = b.getY() + b.getHeight();
 
     // Allow merging of adjacent regions (within 1 pixel) to reduce fragmentation
-    return !(a_right < b.x - 1 || b_right < a.x - 1 ||
-             a_bottom < b.y - 1 || b_bottom < a.y - 1);
+    return !(a_right < b.getX() - 1 || b_right < a.getX() - 1 ||
+             a_bottom < b.getY() - 1 || b_bottom < a.getY() - 1);
 }
 
 LayoutRegion Compositor::mergeRegions(const LayoutRegion& a, const LayoutRegion& b) const {
-    int left = std::min(a.x, b.x);
-    int top = std::min(a.y, b.y);
-    int right = std::max(a.x + a.width, b.x + b.width);
-    int bottom = std::max(a.y + a.height, b.y + b.height);
+    int left = std::min(a.getX(), b.getX());
+    int top = std::min(a.getY(), b.getY());
+    int right = std::max(a.getX() + a.getWidth(), b.getX() + b.getWidth());
+    int bottom = std::max(a.getY() + a.getHeight(), b.getY() + b.getHeight());
 
     return LayoutRegion(left, top, right - left, bottom - top);
 }

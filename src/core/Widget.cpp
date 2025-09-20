@@ -3,7 +3,7 @@
 
 void Widget::clearRegion(const LayoutRegion& region) {
     // Clear region with white background
-    display.fillRect(region.x, region.y, region.width, region.height, 7);
+    display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 7);
 }
 
 void Widget::setClipRegion(const LayoutRegion& region) {

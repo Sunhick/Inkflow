@@ -81,12 +81,12 @@ void LayoutManager::calculateLayoutRegions() {
     batteryRegion = LayoutRegion(0, sectionHeight * 3, sidebarWidth, displayHeight - (sectionHeight * 3));
 
     Serial.printf("Layout regions calculated:\n");
-    Serial.printf("  Sidebar: %dx%d at (%d,%d)\n", sidebarRegion.width, sidebarRegion.height, sidebarRegion.x, sidebarRegion.y);
-    Serial.printf("  Image: %dx%d at (%d,%d)\n", imageRegion.width, imageRegion.height, imageRegion.x, imageRegion.y);
-    Serial.printf("  Name: %dx%d at (%d,%d)\n", nameRegion.width, nameRegion.height, nameRegion.x, nameRegion.y);
-    Serial.printf("  Time: %dx%d at (%d,%d)\n", timeRegion.width, timeRegion.height, timeRegion.x, timeRegion.y);
-    Serial.printf("  Weather: %dx%d at (%d,%d)\n", weatherRegion.width, weatherRegion.height, weatherRegion.x, weatherRegion.y);
-    Serial.printf("  Battery: %dx%d at (%d,%d)\n", batteryRegion.width, batteryRegion.height, batteryRegion.x, batteryRegion.y);
+    Serial.printf("  Sidebar: %dx%d at (%d,%d)\n", sidebarRegion.getWidth(), sidebarRegion.getHeight(), sidebarRegion.getX(), sidebarRegion.getY());
+    Serial.printf("  Image: %dx%d at (%d,%d)\n", imageRegion.getWidth(), imageRegion.getHeight(), imageRegion.getX(), imageRegion.getY());
+    Serial.printf("  Name: %dx%d at (%d,%d)\n", nameRegion.getWidth(), nameRegion.getHeight(), nameRegion.getX(), nameRegion.getY());
+    Serial.printf("  Time: %dx%d at (%d,%d)\n", timeRegion.getWidth(), timeRegion.getHeight(), timeRegion.getX(), timeRegion.getY());
+    Serial.printf("  Weather: %dx%d at (%d,%d)\n", weatherRegion.getWidth(), weatherRegion.getHeight(), weatherRegion.getX(), weatherRegion.getY());
+    Serial.printf("  Battery: %dx%d at (%d,%d)\n", batteryRegion.getWidth(), batteryRegion.getHeight(), batteryRegion.getX(), batteryRegion.getY());
 }
 
 void LayoutManager::initializeComponents() {
@@ -281,31 +281,31 @@ void LayoutManager::renderAllWidgets() {
 
 void LayoutManager::clearRegion(const LayoutRegion& region) {
     // Clear region with white background
-    display.fillRect(region.x, region.y, region.width, region.height, 7);
+    display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 7);
 }
 
 void LayoutManager::drawLayoutBorders() {
     // Draw vertical separator between sidebar and image area
-    int separatorX = sidebarRegion.width - 1;
+    int separatorX = sidebarRegion.getWidth() - 1;
     display.drawLine(separatorX, 0, separatorX, display.height(), 0);
     display.drawLine(separatorX + 1, 0, separatorX + 1, display.height(), 0);
 
     // Draw horizontal separators between sidebar sections
-    int nameBottom = nameRegion.y + nameRegion.height - 1;
-    int timeBottom = timeRegion.y + timeRegion.height - 1;
-    int weatherBottom = weatherRegion.y + weatherRegion.height - 1;
+    int nameBottom = nameRegion.getY() + nameRegion.getHeight() - 1;
+    int timeBottom = timeRegion.getY() + timeRegion.getHeight() - 1;
+    int weatherBottom = weatherRegion.getY() + weatherRegion.getHeight() - 1;
 
     // Line between name and time sections
-    display.drawLine(5, nameBottom, sidebarRegion.width - 5, nameBottom, 0);
-    display.drawLine(5, nameBottom + 1, sidebarRegion.width - 5, nameBottom + 1, 0);
+    display.drawLine(5, nameBottom, sidebarRegion.getWidth() - 5, nameBottom, 0);
+    display.drawLine(5, nameBottom + 1, sidebarRegion.getWidth() - 5, nameBottom + 1, 0);
 
     // Line between time and weather sections
-    display.drawLine(5, timeBottom, sidebarRegion.width - 5, timeBottom, 0);
-    display.drawLine(5, timeBottom + 1, sidebarRegion.width - 5, timeBottom + 1, 0);
+    display.drawLine(5, timeBottom, sidebarRegion.getWidth() - 5, timeBottom, 0);
+    display.drawLine(5, timeBottom + 1, sidebarRegion.getWidth() - 5, timeBottom + 1, 0);
 
     // Line between weather and battery sections
-    display.drawLine(5, weatherBottom, sidebarRegion.width - 5, weatherBottom, 0);
-    display.drawLine(5, weatherBottom + 1, sidebarRegion.width - 5, weatherBottom + 1, 0);
+    display.drawLine(5, weatherBottom, sidebarRegion.getWidth() - 5, weatherBottom, 0);
+    display.drawLine(5, weatherBottom + 1, sidebarRegion.getWidth() - 5, weatherBottom + 1, 0);
 }
 
 void LayoutManager::forceRefresh() {

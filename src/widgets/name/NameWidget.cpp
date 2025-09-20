@@ -20,7 +20,7 @@ bool NameWidget::shouldUpdate() {
 
 void NameWidget::render(const LayoutRegion& region) {
     Serial.printf("Rendering name widget in region: %dx%d at (%d,%d)\n",
-                  region.width, region.height, region.x, region.y);
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region
     clearRegion(region);
@@ -46,10 +46,10 @@ String NameWidget::getFamilyName() const {
 void NameWidget::drawNameDisplay(const LayoutRegion& region) {
     // Draw decorative border around the name area first
     int borderMargin = 12;
-    int borderX = region.x + borderMargin;
-    int borderY = region.y + borderMargin;
-    int borderWidth = region.width - (borderMargin * 2);
-    int borderHeight = region.height - (borderMargin * 2);
+    int borderX = region.getX() + borderMargin;
+    int borderY = region.getY() + borderMargin;
+    int borderWidth = region.getWidth() - (borderMargin * 2);
+    int borderHeight = region.getHeight() - (borderMargin * 2);
 
     // Draw double border for elegant look
     display.drawRect(borderX, borderY, borderWidth, borderHeight, 0);

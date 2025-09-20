@@ -20,7 +20,7 @@ bool BatteryWidget::shouldUpdate() {
 
 void BatteryWidget::render(const LayoutRegion& region) {
     Serial.printf("Rendering battery widget in region: %dx%d at (%d,%d)\n",
-                  region.width, region.height, region.x, region.y);
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region
     clearRegion(region);
@@ -62,8 +62,8 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
 
     // Calculate positions within the region
     int margin = 10;
-    int labelX = region.x + margin;
-    int labelY = region.y + margin;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
 
     // Draw "BATTERY" label
     display.setCursor(labelX, labelY);
