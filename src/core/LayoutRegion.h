@@ -1,8 +1,23 @@
 #ifndef LAYOUT_REGION_H
 #define LAYOUT_REGION_H
 
-// Forward declaration
+#include <cstddef>
+
+// Forward declarations
 class Widget;
+class LayoutRegionImpl;
+class Inkplate;
+struct AppConfig;
+
+// Widget types that regions can create
+enum class WidgetType {
+    NONE,
+    IMAGE,
+    BATTERY,
+    TIME,
+    WEATHER,
+    NAME
+};
 
 // Layout region class with widget reference and dirty state tracking
 class LayoutRegion {
@@ -26,11 +41,25 @@ public:
     void setHeight(int newHeight) { height = newHeight; markDirty(); }
     void setBounds(int newX, int newY, int newWidth, int newHeight);
 
-    // Widget management
+    // Widget type management - regions create their own widgets
+    void setWidgetType(WidgetType type, Inkplate& display, const AppConfig& config);
+    WidgetType getWidgetType() const;
+
+    // Widget collection management (using raw pointers for simplicity)
+    size_t addWidget(Widget* widget);
+    bool removeWidget(size_t index);
+    Widget* getWidget(size_t index) const;
+    size_t getWidgetCount() const;
+    void clearWidgets();
+
+    // Widget initialization
+    void initializeWidgets();
+
+    // Legacy widget management (for backward compatibility)
     void setWidget(Widget* widget);
-    Widget* getWidget() const { return widget; }
-    void removeWidget();
-    bool hasWidget() const { return widget != nullptr; }
+    Widget* getLegacyWidget() const;
+    void removeLegacyWidget();
+    bool hasWidget() const;
 
     // Dirty state tracking
     void markDirty();
@@ -42,6 +71,9 @@ public:
     bool intersects(const LayoutRegion& other) const;
     bool intersects(int otherX, int otherY, int otherWidth, int otherHeight) const;
 
+    // Rendering methods
+    void render(); // Render all widgets in this region
+
     // Utility methods
     int getRight() const { return x + width; }
     int getBottom() const { return y + height; }
@@ -49,7 +81,9 @@ public:
 
 private:
     int x, y, width, height;
-    Widget* widget;
+    LayoutRegionImpl* impl; // PIMPL to hide widget collection implementation
+    Widget* legacyWidget; // For backward compatibility
+    WidgetType widgetType;
     bool isDirty;
 };
 

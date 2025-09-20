@@ -1,12 +1,49 @@
 #include "LayoutRegion.h"
+#include "Widget.h"
+#include "../widgets/image/ImageWidget.h"
+#include "../widgets/battery/BatteryWidget.h"
+#include "../widgets/time/TimeWidget.h"
+#include "../widgets/weather/WeatherWidget.h"
+#include "../widgets/name/NameWidget.h"
+#include "../managers/ConfigManager.h"
+#include <vector>
+
+// Helper function to get widget type name for logging
+const char* getWidgetTypeName(WidgetType type) {
+    switch (type) {
+        case WidgetType::IMAGE: return "Image";
+        case WidgetType::BATTERY: return "Battery";
+        case WidgetType::TIME: return "Time";
+        case WidgetType::WEATHER: return "Weather";
+        case WidgetType::NAME: return "Name";
+        case WidgetType::NONE: return "None";
+        default: return "Unknown";
+    }
+}
+
+// PIMPL implementation to hide widget collection details
+class LayoutRegionImpl {
+public:
+    std::vector<Widget*> widgets;
+
+    LayoutRegionImpl() {}
+    ~LayoutRegionImpl() {
+        // Delete widgets that we own (regions now own their widgets)
+        for (Widget* widget : widgets) {
+            delete widget;
+        }
+        widgets.clear();
+    }
+};
 
 LayoutRegion::LayoutRegion(int x, int y, int w, int h)
-    : x(x), y(y), width(w), height(h), widget(nullptr), isDirty(true) {
+    : x(x), y(y), width(w), height(h), impl(new LayoutRegionImpl()), legacyWidget(nullptr), widgetType(WidgetType::NONE), isDirty(true) {
 }
 
 LayoutRegion::~LayoutRegion() {
-    // Note: We don't delete the widget as we don't own it
-    widget = nullptr;
+    delete impl;
+    // Note: We don't delete the legacyWidget as we don't own it
+    legacyWidget = nullptr;
 }
 
 void LayoutRegion::setBounds(int newX, int newY, int newWidth, int newHeight) {
@@ -17,18 +54,149 @@ void LayoutRegion::setBounds(int newX, int newY, int newWidth, int newHeight) {
     markDirty();
 }
 
-void LayoutRegion::setWidget(Widget* newWidget) {
-    if (widget != newWidget) {
-        widget = newWidget;
+// Widget collection management methods
+size_t LayoutRegion::addWidget(Widget* widget) {
+    if (!widget) {
+        return SIZE_MAX; // Invalid index for null widget
+    }
+
+    impl->widgets.push_back(widget);
+    markDirty();
+    return impl->widgets.size() - 1; // Return index of added widget
+}
+
+bool LayoutRegion::removeWidget(size_t index) {
+    if (index >= impl->widgets.size()) {
+        return false; // Invalid index
+    }
+
+    impl->widgets.erase(impl->widgets.begin() + index);
+    markDirty();
+    return true;
+}
+
+Widget* LayoutRegion::getWidget(size_t index) const {
+    if (index >= impl->widgets.size()) {
+        return nullptr; // Invalid index
+    }
+
+    return impl->widgets[index];
+}
+
+size_t LayoutRegion::getWidgetCount() const {
+    return impl->widgets.size();
+}
+
+void LayoutRegion::clearWidgets() {
+    if (!impl->widgets.empty()) {
+        impl->widgets.clear();
         markDirty();
     }
 }
 
-void LayoutRegion::removeWidget() {
-    if (widget != nullptr) {
-        widget = nullptr;
+// Widget type management - regions create their own widgets
+void LayoutRegion::setWidgetType(WidgetType type, Inkplate& display, const AppConfig& config) {
+    if (widgetType != type) {
+        widgetType = type;
+
+        // Clear existing widgets when changing type
+        clearWidgets();
+
+        // Create the appropriate widget based on type
+        Widget* widget = nullptr;
+
+        switch (type) {
+            case WidgetType::IMAGE:
+                widget = new ImageWidget(display, config.serverURL.c_str());
+                break;
+
+            case WidgetType::BATTERY:
+                widget = new BatteryWidget(display, config.batteryUpdateMs);
+                break;
+
+            case WidgetType::TIME:
+                widget = new TimeWidget(display, config.timeUpdateMs);
+                break;
+
+            case WidgetType::WEATHER:
+                widget = new WeatherWidget(display, config.weatherLatitude, config.weatherLongitude,
+                                         config.weatherCity, config.weatherUnits);
+                break;
+
+            case WidgetType::NAME:
+                widget = new NameWidget(display, config.familyName);
+                break;
+
+            case WidgetType::NONE:
+            default:
+                // No widget to create
+                break;
+        }
+
+        if (widget) {
+            addWidget(widget);
+            Serial.printf("Created %s widget for region at (%d,%d)\n",
+                         getWidgetTypeName(type), x, y);
+        }
+
         markDirty();
     }
+}
+
+WidgetType LayoutRegion::getWidgetType() const {
+    return widgetType;
+}
+
+void LayoutRegion::initializeWidgets() {
+    // Initialize all widgets in this region
+    for (size_t i = 0; i < impl->widgets.size(); ++i) {
+        Widget* widget = impl->widgets[i];
+        if (widget) {
+            widget->begin();
+        }
+    }
+}
+
+// Legacy widget management (for backward compatibility)
+void LayoutRegion::setWidget(Widget* newWidget) {
+    if (legacyWidget != newWidget) {
+        legacyWidget = newWidget;
+        markDirty();
+    }
+}
+
+Widget* LayoutRegion::getLegacyWidget() const {
+    return legacyWidget;
+}
+
+void LayoutRegion::removeLegacyWidget() {
+    if (legacyWidget != nullptr) {
+        legacyWidget = nullptr;
+        markDirty();
+    }
+}
+
+bool LayoutRegion::hasWidget() const {
+    return legacyWidget != nullptr || !impl->widgets.empty();
+}
+
+// Rendering methods
+void LayoutRegion::render() {
+    // Render legacy widget if it exists
+    if (legacyWidget) {
+        legacyWidget->render(*this);
+    }
+
+    // Render all widgets in the collection
+    for (size_t i = 0; i < impl->widgets.size(); ++i) {
+        Widget* widget = impl->widgets[i];
+        if (widget) {
+            widget->render(*this);
+        }
+    }
+
+    // Mark region as clean after rendering
+    markClean();
 }
 
 void LayoutRegion::markDirty() {

@@ -4,12 +4,9 @@
 #include "../core/LayoutRegion.h"
 #include "DisplayManager.h"
 #include "ConfigManager.h"
-#include "../widgets/image/ImageWidget.h"
-#include "../widgets/battery/BatteryWidget.h"
-#include "../widgets/time/TimeWidget.h"
-#include "../widgets/weather/WeatherWidget.h"
-#include "../widgets/name/NameWidget.h"
 #include "WiFiManager.h"
+#include <vector>
+#include <memory>
 
 class LayoutManager {
 public:
@@ -19,15 +16,26 @@ public:
     void begin();
     void loop();
     void forceRefresh(); // Manual refresh triggered by button
-    void forceTimeAndBatteryUpdate(); // Force update of time and battery widgets
 
-    // Layout region getters for widgets
-    LayoutRegion getImageRegion() const { return imageRegion; }
-    LayoutRegion getSidebarRegion() const { return sidebarRegion; }
-    LayoutRegion getNameRegion() const { return nameRegion; }
-    LayoutRegion getTimeRegion() const { return timeRegion; }
-    LayoutRegion getWeatherRegion() const { return weatherRegion; }
-    LayoutRegion getBatteryRegion() const { return batteryRegion; }
+    // Region collection management
+    size_t addRegion(std::unique_ptr<LayoutRegion> region);
+    bool removeRegion(size_t index);
+    LayoutRegion* getRegion(size_t index) const;
+    size_t getRegionCount() const { return regions.size(); }
+
+    // Region iteration
+    std::vector<std::unique_ptr<LayoutRegion>>::iterator regionsBegin() { return regions.begin(); }
+    std::vector<std::unique_ptr<LayoutRegion>>::iterator regionsEnd() { return regions.end(); }
+    std::vector<std::unique_ptr<LayoutRegion>>::const_iterator regionsBegin() const { return regions.begin(); }
+    std::vector<std::unique_ptr<LayoutRegion>>::const_iterator regionsEnd() const { return regions.end(); }
+
+    // Legacy region getters for backward compatibility (returns pointers to regions in collection)
+    LayoutRegion* getImageRegion() const;
+    LayoutRegion* getSidebarRegion() const;
+    LayoutRegion* getNameRegion() const;
+    LayoutRegion* getTimeRegion() const;
+    LayoutRegion* getWeatherRegion() const;
+    LayoutRegion* getBatteryRegion() const;
 
     // Configuration getters for power management
     unsigned long getShortestUpdateInterval() const;
@@ -42,33 +50,31 @@ private:
     DisplayManager* displayManager;
     WiFiManager* wifiManager;
 
-    // Widgets
-    ImageWidget* imageWidget;
-    BatteryWidget* batteryWidget;
-    TimeWidget* timeWidget;
-    WeatherWidget* weatherWidget;
-    NameWidget* nameWidget;
+    // Region collection system
+    std::vector<std::unique_ptr<LayoutRegion>> regions;
 
-    // Layout regions
-    LayoutRegion imageRegion;
-    LayoutRegion sidebarRegion;
-    LayoutRegion nameRegion;
-    LayoutRegion timeRegion;
-    LayoutRegion weatherRegion;
-    LayoutRegion batteryRegion;
+    // Region indices for quick access
+    enum RegionIndex {
+        SIDEBAR_REGION = 0,
+        IMAGE_REGION = 1,
+        NAME_REGION = 2,
+        TIME_REGION = 3,
+        WEATHER_REGION = 4,
+        BATTERY_REGION = 5
+    };
 
     // Configuration
     unsigned long lastUpdate;
 
     // Private methods
     void calculateLayoutRegions();
+    void assignWidgetTypesToRegions();
     void initializeComponents();
     void performInitialSetup();
     void handleScheduledUpdate();
-    void handleComponentUpdates();
+    void handleWidgetUpdates();
     bool ensureConnectivity();
-    void processImageUpdate(bool showLoadingStatus = true);
-    void renderAllWidgets();
+    void renderAllRegions();
     void clearRegion(const LayoutRegion& region);
     void drawLayoutBorders();
 };
