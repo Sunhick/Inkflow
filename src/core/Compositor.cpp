@@ -165,16 +165,30 @@ void Compositor::fillRect(int x, int y, int w, int h, uint8_t color) {
 }
 
 void Compositor::markRegionChanged(const LayoutRegion& region) {
+    // Validate region bounds
+    if (region.width <= 0 || region.height <= 0) return;
+
+    // Clamp region to surface bounds
+    LayoutRegion clampedRegion(
+        std::max(0, region.x),
+        std::max(0, region.y),
+        std::min(region.width, surfaceWidth - std::max(0, region.x)),
+        std::min(region.height, surfaceHeight - std::max(0, region.y))
+    );
+
+    // Skip if region is completely outside surface
+    if (clampedRegion.width <= 0 || clampedRegion.height <= 0) return;
+
     // Add to changed areas list
-    changedAreas.push_back(region);
+    changedAreas.push_back(clampedRegion);
     hasChanges = true;
 
     // Mark dirty regions if tracking is enabled
     if (dirtyRegions) {
-        int startX = std::max(0, region.x);
-        int startY = std::max(0, region.y);
-        int endX = std::min(surfaceWidth, region.x + region.width);
-        int endY = std::min(surfaceHeight, region.y + region.height);
+        int startX = clampedRegion.x;
+        int startY = clampedRegion.y;
+        int endX = clampedRegion.x + clampedRegion.width;
+        int endY = clampedRegion.y + clampedRegion.height;
 
         for (int y = startY; y < endY; y++) {
             for (int x = startX; x < endX; x++) {
@@ -182,6 +196,9 @@ void Compositor::markRegionChanged(const LayoutRegion& region) {
             }
         }
     }
+
+    // Merge overlapping regions to optimize partial updates
+    mergeOverlappingRegions();
 }
 
 void Compositor::resetChangeTracking() {
@@ -260,4 +277,46 @@ size_t Compositor::getMemoryUsage() const {
     usage += changedAreas.capacity() * sizeof(LayoutRegion);
 
     return usage;
+}
+
+void Compositor::mergeOverlappingRegions() {
+    if (changedAreas.size() <= 1) return;
+
+    bool merged = true;
+    while (merged) {
+        merged = false;
+        for (size_t i = 0; i < changedAreas.size() && !merged; i++) {
+            for (size_t j = i + 1; j < changedAreas.size(); j++) {
+                if (regionsOverlap(changedAreas[i], changedAreas[j])) {
+                    // Merge regions
+                    LayoutRegion mergedRegion = mergeRegions(changedAreas[i], changedAreas[j]);
+                    changedAreas[i] = mergedRegion;
+                    changedAreas.erase(changedAreas.begin() + j);
+                    merged = true;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+bool Compositor::regionsOverlap(const LayoutRegion& a, const LayoutRegion& b) const {
+    // Check if regions overlap or are adjacent (for merging efficiency)
+    int a_right = a.x + a.width;
+    int a_bottom = a.y + a.height;
+    int b_right = b.x + b.width;
+    int b_bottom = b.y + b.height;
+
+    // Allow merging of adjacent regions (within 1 pixel) to reduce fragmentation
+    return !(a_right < b.x - 1 || b_right < a.x - 1 ||
+             a_bottom < b.y - 1 || b_bottom < a.y - 1);
+}
+
+LayoutRegion Compositor::mergeRegions(const LayoutRegion& a, const LayoutRegion& b) const {
+    int left = std::min(a.x, b.x);
+    int top = std::min(a.y, b.y);
+    int right = std::max(a.x + a.width, b.x + b.width);
+    int bottom = std::max(a.y + a.height, b.y + b.height);
+
+    return LayoutRegion(left, top, right - left, bottom - top);
 }

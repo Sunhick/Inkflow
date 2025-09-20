@@ -23,6 +23,11 @@ private:
     std::vector<LayoutRegion> changedAreas;
     bool hasChanges;
 
+    // Enhanced change tracking
+    void mergeOverlappingRegions();
+    bool regionsOverlap(const LayoutRegion& a, const LayoutRegion& b) const;
+    LayoutRegion mergeRegions(const LayoutRegion& a, const LayoutRegion& b) const;
+
     // Helper methods
     size_t getPixelIndex(int x, int y) const;
     bool isValidCoordinate(int x, int y) const;
