@@ -49,28 +49,21 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
 
     Serial.printf("Fetching image from: %s\n", imageUrl);
 
-    // Clear the entire display first (like the old working code)
-    display.clearDisplay();
+    // DON'T clear the entire display - only draw in our region!
+    // The LayoutManager already cleared our specific region before calling render()
 
-    // Try to draw the image - no loading messages, just attempt silently
+    // Try to draw the image only at the correct region position
     bool success = display.drawImage(imageUrl, region.getX(), region.getY(), false, false);
 
     if (success) {
-        Serial.println("Image downloaded and displayed successfully");
+        Serial.println("Image downloaded and displayed successfully at correct position");
         return true;
     }
 
-    // Try without specifying position
-    success = display.drawImage(imageUrl, 0, 0, false, false);
+    // Try with dithering at the correct position
+    success = display.drawImage(imageUrl, region.getX(), region.getY(), true, false);
     if (success) {
-        Serial.println("Image displayed at origin successfully");
-        return true;
-    }
-
-    // Try with dithering
-    success = display.drawImage(imageUrl, 0, 0, true, false);
-    if (success) {
-        Serial.println("Image displayed with dithering");
+        Serial.println("Image displayed with dithering at correct position");
         return true;
     }
 

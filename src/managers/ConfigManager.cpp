@@ -10,6 +10,7 @@ WidgetType WidgetTypeRegistry::fromString(const String& typeStr) {
     if (typeStr == WidgetTypeTraits<TimeWidget>::name()) return WidgetTypeTraits<TimeWidget>::type();
     if (typeStr == WidgetTypeTraits<BatteryWidget>::name()) return WidgetTypeTraits<BatteryWidget>::type();
     if (typeStr == WidgetTypeTraits<ImageWidget>::name()) return WidgetTypeTraits<ImageWidget>::type();
+    if (typeStr == WidgetTypeTraits<LayoutWidget>::name()) return WidgetTypeTraits<LayoutWidget>::type();
     return WidgetType::UNKNOWN;
 }
 
@@ -20,6 +21,7 @@ String WidgetTypeRegistry::toString(WidgetType type) {
         case WidgetType::DATE_TIME: return WidgetTypeTraits<TimeWidget>::name();
         case WidgetType::BATTERY: return WidgetTypeTraits<BatteryWidget>::name();
         case WidgetType::IMAGE: return WidgetTypeTraits<ImageWidget>::name();
+        case WidgetType::LAYOUT: return WidgetTypeTraits<LayoutWidget>::name();
         default: return "unknown";
     }
 }
@@ -77,12 +79,15 @@ bool ConfigManager::loadConfig() {
     config.dateTimeWidgets.clear();
     config.batteryWidgets.clear();
     config.imageWidgets.clear();
+    config.layoutWidgets.clear();
 
     // Parse widgets array
     JsonArray widgets = doc["Widgets"];
     for (JsonObject widget : widgets) {
         String typeStr = widget["type"] | "";
         WidgetType widgetType = WidgetTypeRegistry::fromString(typeStr);
+
+        Serial.printf("Parsing widget type: '%s' -> %d\n", typeStr.c_str(), (int)widgetType);
 
         switch (widgetType) {
             case WidgetType::WEATHER: {
@@ -105,18 +110,24 @@ bool ConfigManager::loadConfig() {
             }
 
             case WidgetType::DATE_TIME: {
+                String regionStr = widget["region"] | "";
+                Serial.printf("Parsing TimeWidget for region: %s\n", regionStr.c_str());
                 DateTimeWidgetConfig dateTimeConfig;
                 dateTimeConfig.region = widget["region"] | "";
                 dateTimeConfig.timeUpdateMs = widget["timeUpdateMs"] | 900000UL;
                 config.dateTimeWidgets.push_back(dateTimeConfig);
+                Serial.printf("Added TimeWidget to config, total: %d\n", config.dateTimeWidgets.size());
                 break;
             }
 
             case WidgetType::BATTERY: {
+                String regionStr = widget["region"] | "";
+                Serial.printf("Parsing BatteryWidget for region: %s\n", regionStr.c_str());
                 BatteryWidgetConfig batteryConfig;
                 batteryConfig.region = widget["region"] | "";
                 batteryConfig.batteryUpdateMs = widget["batteryUpdateMs"] | 900000UL;
                 config.batteryWidgets.push_back(batteryConfig);
+                Serial.printf("Added BatteryWidget to config, total: %d\n", config.batteryWidgets.size());
                 break;
             }
 
@@ -125,6 +136,19 @@ bool ConfigManager::loadConfig() {
                 imageConfig.region = widget["region"] | "";
                 imageConfig.imageRefreshMs = widget["imageRefreshMs"] | 86400000UL;
                 config.imageWidgets.push_back(imageConfig);
+                break;
+            }
+
+            case WidgetType::LAYOUT: {
+                LayoutWidgetConfig layoutConfig;
+                // No region assignment - LayoutWidget is global
+                layoutConfig.showRegionBorders = widget["showRegionBorders"] | false;
+                layoutConfig.showSeparators = widget["showSeparators"] | false;
+                layoutConfig.borderColor = widget["borderColor"] | 0;
+                layoutConfig.separatorColor = widget["separatorColor"] | 0;
+                layoutConfig.borderThickness = widget["borderThickness"] | 1;
+                layoutConfig.separatorThickness = widget["separatorThickness"] | 1;
+                config.layoutWidgets.push_back(layoutConfig);
                 break;
             }
 
@@ -155,7 +179,6 @@ bool ConfigManager::loadConfig() {
     config.displayWidth = doc["Display"]["Width"] | 1200;
     config.displayHeight = doc["Display"]["Height"] | 825;
     config.usePartialUpdates = doc["Display"]["UsePartialUpdates"] | false;
-    config.showRegionBorders = doc["Display"]["ShowRegionBorders"] | false;
 
     // Hardware configuration
     config.wakeButtonPin = doc["Hardware"]["WakeButtonPin"] | 36;
@@ -240,7 +263,6 @@ bool ConfigManager::saveConfig() {
     doc["Display"]["Width"] = config.displayWidth;
     doc["Display"]["Height"] = config.displayHeight;
     doc["Display"]["UsePartialUpdates"] = config.usePartialUpdates;
-    doc["Display"]["ShowRegionBorders"] = config.showRegionBorders;
 
     // Hardware configuration
     doc["Hardware"]["WakeButtonPin"] = config.wakeButtonPin;
@@ -277,12 +299,12 @@ void ConfigManager::setDefaults() {
     config.dateTimeWidgets.clear();
     config.batteryWidgets.clear();
     config.imageWidgets.clear();
+    config.layoutWidgets.clear();
     config.regions.clear();
 
     config.displayWidth = 1200;
     config.displayHeight = 825;
     config.usePartialUpdates = false;
-    config.showRegionBorders = false;
 
     config.wakeButtonPin = 36;
 

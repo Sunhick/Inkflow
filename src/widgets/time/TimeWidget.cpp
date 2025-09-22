@@ -30,11 +30,10 @@ bool TimeWidget::shouldUpdate() {
 }
 
 void TimeWidget::render(const LayoutRegion& region) {
-    Serial.printf("Rendering time widget in region: %dx%d at (%d,%d)\n",
+    Serial.printf("TimeWidget::render() called - region: %dx%d at (%d,%d)\n",
                   region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
-    // Clear the widget region
-    clearRegion(region);
+    // Region is already cleared by LayoutManager - don't clear again
 
     // Sync time if not initialized
     if (!timeInitialized) {
@@ -43,9 +42,12 @@ void TimeWidget::render(const LayoutRegion& region) {
     }
 
     // Draw time content within the region
+    Serial.println("About to call drawTimeDisplay()...");
     drawTimeDisplay(region);
+    Serial.println("drawTimeDisplay() completed");
 
     lastTimeUpdate = millis();
+    Serial.printf("TimeWidget::render() completed - lastTimeUpdate set to %lu\n", lastTimeUpdate);
 }
 
 void TimeWidget::syncTimeWithNTP() {
@@ -90,52 +92,59 @@ void TimeWidget::syncTimeWithNTP() {
 }
 
 void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
+    Serial.println("TimeWidget::drawTimeDisplay() - Drawing normal time display");
+
     int margin = 10;
     int labelX = region.getX() + margin;
     int labelY = region.getY() + margin;
 
-    // Draw "DATE & TIME" label
-    display.setCursor(labelX, labelY);
+    // Draw "DATE TIME" label
+    display.setCursor(labelX, labelY + 20);
     display.setTextSize(2);
-    display.setTextColor(0);
-    display.setTextWrap(true);
-    display.print("DATE & TIME");
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
+    display.print("DATE TIME");
+    Serial.println("Drew DATE TIME label");
 
     if (!timeInitialized) {
-        display.setCursor(labelX, labelY + 40);
-        display.setTextSize(1);
-        display.setTextColor(0);
-        display.setTextWrap(true);
-        display.print("Time Sync Failed");
+        display.setCursor(labelX, labelY + 60);
+        display.setTextSize(2);
+        display.setTextColor(0); // Black text
+        display.setTextWrap(false);
+        display.print("SYNC FAIL");
+        Serial.println("Drew SYNC FAIL message");
         return;
     }
 
-    // Get formatted strings
-    String dateStr = getFormattedDate();
+    // Get formatted time string
     String timeStr = getFormattedTime();
-    String dayStr = getDayOfWeek();
+    Serial.printf("Time string: %s\n", timeStr.c_str());
 
-    // Draw day of week
-    display.setCursor(labelX, labelY + 30);
-    display.setTextSize(2);
-    display.setTextColor(0);
-    display.setTextWrap(true);
-    dayStr.toUpperCase();
-    display.print(dayStr);
-
-    // Draw date
+    // Draw time
     display.setCursor(labelX, labelY + 60);
-    display.setTextSize(2);
-    display.setTextColor(0);
-    display.setTextWrap(true);
-    display.print(dateStr);
-
-    // Draw time (larger)
-    display.setCursor(labelX, labelY + 90);
     display.setTextSize(3);
-    display.setTextColor(0);
-    display.setTextWrap(true);
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
     display.print(timeStr);
+    Serial.printf("Drew time string: %s\n", timeStr.c_str());
+
+    // Draw date (larger font)
+    String dateStr = getFormattedDate();
+    display.setCursor(labelX, labelY + 110);
+    display.setTextSize(2);
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
+    display.print(dateStr);
+    Serial.printf("Drew date string: %s\n", dateStr.c_str());
+
+    // Draw day of week (larger font)
+    String dayStr = getDayOfWeek();
+    display.setCursor(labelX, labelY + 140);
+    display.setTextSize(2);
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
+    display.print(dayStr);
+    Serial.printf("Drew day string: %s\n", dayStr.c_str());
 }
 
 String TimeWidget::getFormattedDate() {

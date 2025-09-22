@@ -145,6 +145,28 @@ void LayoutRegion::markClean() {
     isDirty = false;
 }
 
+bool LayoutRegion::needsUpdate() const {
+    // Check if region itself is dirty
+    if (isDirty) {
+        return true;
+    }
+
+    // Check if any widgets need updates
+    for (size_t i = 0; i < impl->widgets.size(); ++i) {
+        Widget* widget = impl->widgets[i];
+        if (widget && widget->shouldUpdate()) {
+            return true;
+        }
+    }
+
+    // Check legacy widget
+    if (legacyWidget && legacyWidget->shouldUpdate()) {
+        return true;
+    }
+
+    return false;
+}
+
 bool LayoutRegion::contains(int pointX, int pointY) const {
     return pointX >= x && pointX < (x + width) &&
            pointY >= y && pointY < (y + height);
@@ -161,4 +183,61 @@ bool LayoutRegion::intersects(int otherX, int otherY, int otherWidth, int otherH
         return false;
     }
     return true;
+}
+void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String& regionId, Inkplate& display) {
+    Serial.printf("LayoutRegion: Creating widgets for region '%s'\n", regionId.c_str());
+
+    // Clear existing widgets first
+    clearWidgets();
+
+    // Create weather widgets assigned to this region
+    for (const auto& weatherConfig : config.weatherWidgets) {
+        if (weatherConfig.region == regionId) {
+            WeatherWidget* widget = new WeatherWidget(display,
+                                                     weatherConfig.latitude,
+                                                     weatherConfig.longitude,
+                                                     weatherConfig.city,
+                                                     weatherConfig.units);
+            addWidget(widget);
+            Serial.printf("  Created WeatherWidget for region '%s'\n", regionId.c_str());
+        }
+    }
+
+    // Create name widgets assigned to this region
+    for (const auto& nameConfig : config.nameWidgets) {
+        if (nameConfig.region == regionId) {
+            NameWidget* widget = new NameWidget(display, nameConfig.familyName);
+            addWidget(widget);
+            Serial.printf("  Created NameWidget for region '%s'\n", regionId.c_str());
+        }
+    }
+
+    // Create dateTime widgets assigned to this region
+    for (const auto& dateTimeConfig : config.dateTimeWidgets) {
+        if (dateTimeConfig.region == regionId) {
+            TimeWidget* widget = new TimeWidget(display, dateTimeConfig.timeUpdateMs);
+            addWidget(widget);
+            Serial.printf("  Created TimeWidget for region '%s'\n", regionId.c_str());
+        }
+    }
+
+    // Create battery widgets assigned to this region
+    for (const auto& batteryConfig : config.batteryWidgets) {
+        if (batteryConfig.region == regionId) {
+            BatteryWidget* widget = new BatteryWidget(display, batteryConfig.batteryUpdateMs);
+            addWidget(widget);
+            Serial.printf("  Created BatteryWidget for region '%s'\n", regionId.c_str());
+        }
+    }
+
+    // Create image widgets assigned to this region
+    for (const auto& imageConfig : config.imageWidgets) {
+        if (imageConfig.region == regionId) {
+            ImageWidget* widget = new ImageWidget(display, config.serverURL.c_str());
+            addWidget(widget);
+            Serial.printf("  Created ImageWidget for region '%s'\n", regionId.c_str());
+        }
+    }
+
+    Serial.printf("LayoutRegion '%s': Created %d widgets\n", regionId.c_str(), getWidgetCount());
 }

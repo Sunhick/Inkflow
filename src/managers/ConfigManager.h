@@ -12,6 +12,7 @@ enum class WidgetType {
     DATE_TIME,
     BATTERY,
     IMAGE,
+    LAYOUT,
     UNKNOWN
 };
 
@@ -21,6 +22,7 @@ class NameWidget;
 class TimeWidget;
 class BatteryWidget;
 class ImageWidget;
+class LayoutWidget;
 
 // Macro to automatically generate widget type traits (like nameof)
 #define DECLARE_WIDGET_TYPE(WidgetClass, TypeName, EnumValue) \
@@ -41,12 +43,13 @@ struct WidgetTypeTraits {
     static constexpr WidgetType type() { return WidgetType::UNKNOWN; }
 };
 
-// Automatic widget type registration using macro (closest to nameof)
-REGISTER_WIDGET(WeatherWidget, WidgetType::WEATHER)
-REGISTER_WIDGET(NameWidget, WidgetType::NAME)
-REGISTER_WIDGET(TimeWidget, WidgetType::DATE_TIME)
-REGISTER_WIDGET(BatteryWidget, WidgetType::BATTERY)
-REGISTER_WIDGET(ImageWidget, WidgetType::IMAGE)
+// Widget type registration with correct config.json names
+DECLARE_WIDGET_TYPE(WeatherWidget, "WeatherWidget", WidgetType::WEATHER)
+DECLARE_WIDGET_TYPE(NameWidget, "NameWidget", WidgetType::NAME)
+DECLARE_WIDGET_TYPE(TimeWidget, "TimeWidget", WidgetType::DATE_TIME)
+DECLARE_WIDGET_TYPE(BatteryWidget, "BatteryWidget", WidgetType::BATTERY)
+DECLARE_WIDGET_TYPE(ImageWidget, "ImageWidget", WidgetType::IMAGE)
+DECLARE_WIDGET_TYPE(LayoutWidget, "LayoutWidget", WidgetType::LAYOUT)
 
 // Widget type string mapping
 class WidgetTypeRegistry {
@@ -98,6 +101,16 @@ struct ImageWidgetConfig {
     unsigned long imageRefreshMs;
 };
 
+struct LayoutWidgetConfig {
+    // No region field - LayoutWidget is global and not assigned to a specific region
+    bool showRegionBorders;
+    bool showSeparators;
+    int borderColor;
+    int separatorColor;
+    int borderThickness;
+    int separatorThickness;
+};
+
 // Region layout configuration
 struct RegionConfig {
     int x;
@@ -121,6 +134,7 @@ struct AppConfig {
     std::vector<DateTimeWidgetConfig> dateTimeWidgets;
     std::vector<BatteryWidgetConfig> batteryWidgets;
     std::vector<ImageWidgetConfig> imageWidgets;
+    std::vector<LayoutWidgetConfig> layoutWidgets;
 
     // Layout Configuration (region_id -> RegionConfig)
     std::map<String, RegionConfig> regions;
@@ -129,7 +143,6 @@ struct AppConfig {
     int displayWidth;
     int displayHeight;
     bool usePartialUpdates;
-    bool showRegionBorders;
 
     // Hardware Configuration
     int wakeButtonPin;
@@ -159,6 +172,7 @@ public:
     const std::vector<DateTimeWidgetConfig>& getDateTimeWidgets() const { return config.dateTimeWidgets; }
     const std::vector<BatteryWidgetConfig>& getBatteryWidgets() const { return config.batteryWidgets; }
     const std::vector<ImageWidgetConfig>& getImageWidgets() const { return config.imageWidgets; }
+    const std::vector<LayoutWidgetConfig>& getLayoutWidgets() const { return config.layoutWidgets; }
 
     // Region access helpers
     const std::map<String, RegionConfig>& getRegions() const { return config.regions; }

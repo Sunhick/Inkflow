@@ -9,6 +9,9 @@
 #include <memory>
 #include <map>
 
+// Forward declarations
+class LayoutWidget;
+
 class LayoutManager {
 public:
     LayoutManager();
@@ -53,6 +56,9 @@ private:
     std::vector<std::unique_ptr<LayoutRegion>> regions;
     std::map<String, LayoutRegion*> regionMap; // For quick access by region ID
 
+    // Global layout widget for drawing borders/separators
+    LayoutWidget* layoutWidget;
+
     // Configuration
     unsigned long lastUpdate;
 
@@ -66,7 +72,7 @@ private:
     bool ensureConnectivity();
     void renderAllRegions();
     void clearRegion(const LayoutRegion& region);
-    void drawLayoutBorders();
+    // drawLayoutBorders() removed - now handled by LayoutWidget
 };
 
 #endif

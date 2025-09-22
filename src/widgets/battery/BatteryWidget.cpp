@@ -19,16 +19,17 @@ bool BatteryWidget::shouldUpdate() {
 }
 
 void BatteryWidget::render(const LayoutRegion& region) {
-    Serial.printf("Rendering battery widget in region: %dx%d at (%d,%d)\n",
+    Serial.printf("BatteryWidget::render() called - region: %dx%d at (%d,%d)\n",
                   region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
-    // Clear the widget region
-    clearRegion(region);
-
+    // Region is already cleared by LayoutManager - don't clear again
     // Draw battery content within the region
+    Serial.println("About to call drawBatteryIndicator()...");
     drawBatteryIndicator(region);
+    Serial.println("drawBatteryIndicator() completed");
 
     lastBatteryUpdate = millis();
+    Serial.printf("BatteryWidget::render() completed - lastBatteryUpdate set to %lu\n", lastBatteryUpdate);
 }
 
 void BatteryWidget::forceUpdate() {
@@ -58,7 +59,7 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     int percentage = getBatteryPercentage();
     float voltage = getBatteryVoltage();
 
-    Serial.printf("Drawing battery: %d%% (%.2fV)\n", percentage, voltage);
+    Serial.printf("BatteryWidget::drawBatteryIndicator() - Drawing battery: %d%% (%.2fV)\n", percentage, voltage);
 
     // Calculate positions within the region
     int margin = 10;
@@ -66,33 +67,37 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     int labelY = region.getY() + margin;
 
     // Draw "BATTERY" label
-    display.setCursor(labelX, labelY);
+    display.setCursor(labelX, labelY + 20);
     display.setTextSize(2);
-    display.setTextColor(0);
-    display.setTextWrap(true);
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
     display.print("BATTERY");
+    Serial.println("Drew BATTERY label");
 
-    // Draw percentage text
-    display.setCursor(labelX, labelY + 30);
+    // Draw percentage text (smaller size)
+    display.setCursor(labelX, labelY + 60);
     display.setTextSize(3);
-    display.setTextColor(0);
-    display.setTextWrap(true);
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
     display.printf("%d%%", percentage);
+    Serial.printf("Drew percentage: %d%%\n", percentage);
 
-    // Draw battery icon
+    // Draw battery icon (smaller size)
     int iconWidth = 40;
     int iconHeight = 20;
     int iconX = labelX;
-    int iconY = labelY + 70;
+    int iconY = labelY + 100;
 
     drawBatteryIcon(iconX, iconY, percentage, iconWidth, iconHeight);
+    Serial.println("Drew battery icon");
 
-    // Draw voltage info
-    display.setCursor(labelX, labelY + 100);
+    // Draw voltage info (adjusted position for smaller icon)
+    display.setCursor(labelX, labelY + 130);
     display.setTextSize(1);
-    display.setTextColor(0);
-    display.setTextWrap(true);
+    display.setTextColor(0); // Black text
+    display.setTextWrap(false);
     display.printf("%.2fV", voltage);
+    Serial.printf("Drew voltage: %.2fV\n", voltage);
 }
 
 void BatteryWidget::drawBatteryIcon(int x, int y, int percentage, int iconWidth, int iconHeight) {

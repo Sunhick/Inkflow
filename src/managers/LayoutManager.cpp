@@ -4,6 +4,7 @@
 #include "../widgets/time/TimeWidget.h"
 #include "../widgets/weather/WeatherWidget.h"
 #include "../widgets/name/NameWidget.h"
+#include "../widgets/layout/LayoutWidget.h"
 
 // Helper function for C++11 compatibility (make_unique not available until C++14)
 template<typename T, typename... Args>
@@ -12,7 +13,7 @@ std::unique_ptr<T> make_unique_helper(Args&&... args) {
 }
 
 LayoutManager::LayoutManager()
-    : display(INKPLATE_3BIT), lastUpdate(0) {
+    : display(INKPLATE_3BIT), lastUpdate(0), layoutWidget(nullptr) {
 
     // Initialize config manager
     configManager = new ConfigManager();
@@ -22,6 +23,7 @@ LayoutManager::~LayoutManager() {
     delete configManager;
     delete displayManager;
     delete wifiManager;
+    delete layoutWidget; // Clean up global layout widget
 
     // regions vector will automatically clean up unique_ptrs (and regions will clean up their widgets)
 }
@@ -44,6 +46,11 @@ void LayoutManager::begin() {
 
     const AppConfig& config = configManager->getConfig();
 
+    // Debug: Check widget counts in config
+    Serial.printf("Config loaded - Widget counts: weather=%d, name=%d, dateTime=%d, battery=%d, image=%d, layout=%d\n",
+                  config.weatherWidgets.size(), config.nameWidgets.size(), config.dateTimeWidgets.size(),
+                  config.batteryWidgets.size(), config.imageWidgets.size(), config.layoutWidgets.size());
+
     // Calculate layout regions based on config
     calculateLayoutRegions();
 
@@ -54,7 +61,9 @@ void LayoutManager::begin() {
     wifiManager = new WiFiManager(config.wifiSSID.c_str(), config.wifiPassword.c_str());
 
     // Create widgets and assign them to regions
+    Serial.println("About to call createAndAssignWidgets()...");
     createAndAssignWidgets();
+    Serial.println("createAndAssignWidgets() completed");
 
     initializeComponents();
     performInitialSetup();
@@ -69,7 +78,37 @@ void LayoutManager::calculateLayoutRegions() {
     regions.clear();
     regionMap.clear();
 
-    Serial.println("Regions will be created dynamically based on widget requirements");
+    // Create regions from Layout section in config.json
+    Serial.printf("Creating regions from config, found %d regions\n", config.regions.size());
+
+    for (const auto& regionPair : config.regions) {
+        const String& regionId = regionPair.first;
+        const RegionConfig& regionConfig = regionPair.second;
+
+        Serial.printf("Creating region '%s' at (%d,%d) %dx%d\n",
+                     regionId.c_str(), regionConfig.x, regionConfig.y,
+                     regionConfig.width, regionConfig.height);
+
+        auto region = make_unique_helper<LayoutRegion>(
+            regionConfig.x,
+            regionConfig.y,
+            regionConfig.width,
+            regionConfig.height
+        );
+
+        Serial.printf("LayoutRegion created successfully for '%s'\n", regionId.c_str());
+
+        // Add to region map for quick access
+        regionMap[regionId] = region.get();
+        Serial.printf("Added region '%s' to regionMap\n", regionId.c_str());
+
+        // Add to regions vector
+        regions.push_back(std::move(region));
+
+        Serial.printf("Added region '%s' to regions vector\n", regionId.c_str());
+    }
+
+    Serial.printf("Created %d regions from configuration\n", regions.size());
 }
 
 void LayoutManager::createAndAssignWidgets() {
@@ -78,6 +117,7 @@ void LayoutManager::createAndAssignWidgets() {
     Serial.println("Creating widgets and regions based on configuration...");
 
     // Create and assign weather widgets
+    Serial.printf("Creating %d weather widgets\n", config.weatherWidgets.size());
     for (const auto& weatherConfig : config.weatherWidgets) {
         WeatherWidget* widget = new WeatherWidget(display,
                                                  weatherConfig.latitude,
@@ -85,60 +125,98 @@ void LayoutManager::createAndAssignWidgets() {
                                                  weatherConfig.city,
                                                  weatherConfig.units);
 
+        Serial.printf("Created WeatherWidget for region: %s\n", weatherConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(weatherConfig.region);
-        region->addWidget(widget);
-
-        // Using template-based type name instead of hardcoded string
-        String typeName = WidgetTypeRegistry::getTypeName<WeatherWidget>();
-        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), weatherConfig.region.c_str());
+        if (region) {
+            region->addWidget(widget);
+            Serial.printf("  WeatherWidget successfully assigned to region %s\n", weatherConfig.region.c_str());
+        } else {
+            Serial.printf("  ERROR: Failed to get region %s for WeatherWidget\n", weatherConfig.region.c_str());
+        }
     }
 
     // Create and assign name widgets
+    Serial.printf("Creating %d name widgets\n", config.nameWidgets.size());
     for (const auto& nameConfig : config.nameWidgets) {
         NameWidget* widget = new NameWidget(display, nameConfig.familyName);
 
+        Serial.printf("Created NameWidget for region: %s\n", nameConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(nameConfig.region);
-        region->addWidget(widget);
-
-        // Using template-based type name instead of hardcoded string
-        String typeName = WidgetTypeRegistry::getTypeName<NameWidget>();
-        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), nameConfig.region.c_str());
+        if (region) {
+            region->addWidget(widget);
+            Serial.printf("  NameWidget successfully assigned to region %s\n", nameConfig.region.c_str());
+        } else {
+            Serial.printf("  ERROR: Failed to get region %s for NameWidget\n", nameConfig.region.c_str());
+        }
     }
 
     // Create and assign dateTime widgets
+    Serial.printf("Creating %d dateTime widgets\n", config.dateTimeWidgets.size());
     for (const auto& dateTimeConfig : config.dateTimeWidgets) {
         TimeWidget* widget = new TimeWidget(display, dateTimeConfig.timeUpdateMs);
+        widget->begin(); // Initialize the widget immediately
 
+        Serial.printf("Created TimeWidget for region: %s\n", dateTimeConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(dateTimeConfig.region);
-        region->addWidget(widget);
-
-        // Using template-based type name instead of hardcoded string
-        String typeName = WidgetTypeRegistry::getTypeName<TimeWidget>();
-        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), dateTimeConfig.region.c_str());
+        if (region) {
+            region->addWidget(widget);
+            Serial.printf("  TimeWidget successfully assigned to region %s (region has %d widgets)\n",
+                         dateTimeConfig.region.c_str(), region->getWidgetCount());
+        } else {
+            Serial.printf("  ERROR: Failed to get region %s for TimeWidget\n", dateTimeConfig.region.c_str());
+        }
     }
 
     // Create and assign battery widgets
+    Serial.printf("Creating %d battery widgets\n", config.batteryWidgets.size());
     for (const auto& batteryConfig : config.batteryWidgets) {
         BatteryWidget* widget = new BatteryWidget(display, batteryConfig.batteryUpdateMs);
+        widget->begin(); // Initialize the widget immediately
 
+        Serial.printf("Created BatteryWidget for region: %s\n", batteryConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(batteryConfig.region);
-        region->addWidget(widget);
-
-        // Using template-based type name instead of hardcoded string
-        String typeName = WidgetTypeRegistry::getTypeName<BatteryWidget>();
-        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), batteryConfig.region.c_str());
+        if (region) {
+            region->addWidget(widget);
+            Serial.printf("  BatteryWidget successfully assigned to region %s (region has %d widgets)\n",
+                         batteryConfig.region.c_str(), region->getWidgetCount());
+        } else {
+            Serial.printf("  ERROR: Failed to get region %s for BatteryWidget\n", batteryConfig.region.c_str());
+        }
     }
 
     // Create and assign image widgets
+    Serial.printf("Creating %d image widgets\n", config.imageWidgets.size());
     for (const auto& imageConfig : config.imageWidgets) {
         ImageWidget* widget = new ImageWidget(display, config.serverURL.c_str());
 
+        Serial.printf("Created ImageWidget for region: %s\n", imageConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(imageConfig.region);
-        region->addWidget(widget);
+        if (region) {
+            region->addWidget(widget);
+            Serial.printf("  ImageWidget successfully assigned to region %s\n", imageConfig.region.c_str());
+        } else {
+            Serial.printf("  ERROR: Failed to get region %s for ImageWidget\n", imageConfig.region.c_str());
+        }
+    }
+
+    // Create global layout widget (not assigned to any specific region)
+    layoutWidget = nullptr;
+    if (!config.layoutWidgets.empty()) {
+        const auto& layoutConfig = config.layoutWidgets[0]; // Use first layout config
+        layoutWidget = new LayoutWidget(display,
+                                       layoutConfig.showRegionBorders,
+                                       layoutConfig.showSeparators,
+                                       layoutConfig.borderColor,
+                                       layoutConfig.separatorColor,
+                                       layoutConfig.borderThickness,
+                                       layoutConfig.separatorThickness);
+
+        // Give the layout widget access to all regions
+        layoutWidget->setRegions(&regions);
 
         // Using template-based type name instead of hardcoded string
-        String typeName = WidgetTypeRegistry::getTypeName<ImageWidget>();
-        Serial.printf("  %s widget assigned to region %s\n", typeName.c_str(), imageConfig.region.c_str());
+        String typeName = WidgetTypeRegistry::getTypeName<LayoutWidget>();
+        Serial.printf("  %s widget created as global layout renderer\n", typeName.c_str());
     }
 
     Serial.println("Widget and region creation complete");
@@ -153,11 +231,15 @@ LayoutRegion* LayoutManager::getRegionById(const String& regionId) const {
 }
 
 LayoutRegion* LayoutManager::getOrCreateRegion(const String& regionId) {
-    // Check if region already exists
+    // Check if region already exists (should exist from calculateLayoutRegions)
     LayoutRegion* existingRegion = getRegionById(regionId);
     if (existingRegion) {
+        Serial.printf("Using existing region %s\n", regionId.c_str());
         return existingRegion;
     }
+
+    // If region doesn't exist, create it (fallback for dynamic regions)
+    Serial.printf("Region %s not found in config, creating dynamically\n", regionId.c_str());
 
     // Get region layout info from config
     RegionConfig regionConfig = configManager->getRegionConfig(regionId);
@@ -170,7 +252,7 @@ LayoutRegion* LayoutManager::getOrCreateRegion(const String& regionId) {
         regionConfig.height
     );
 
-    Serial.printf("Created region %s: %dx%d at (%d,%d)\n",
+    Serial.printf("Created dynamic region %s: %dx%d at (%d,%d)\n",
                  regionId.c_str(),
                  regionConfig.width, regionConfig.height,
                  regionConfig.x, regionConfig.y);
@@ -225,6 +307,11 @@ void LayoutManager::initializeComponents() {
         if (region) {
             region->initializeWidgets();
         }
+    }
+
+    // Initialize global layout widget
+    if (layoutWidget) {
+        layoutWidget->begin();
     }
 
     Serial.println("All components and widgets initialized");
@@ -339,21 +426,33 @@ void LayoutManager::renderAllRegions() {
     // Each region is responsible for rendering its own widgets
     for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
         LayoutRegion* region = it->get();
-        if (region && region->needsUpdate()) {
-            Serial.printf("Rendering region at (%d,%d) %dx%d\n",
+        if (region) {
+            Serial.printf("Region at (%d,%d) %dx%d has %d widgets, needsUpdate: %s\n",
                          region->getX(), region->getY(),
-                         region->getWidth(), region->getHeight());
+                         region->getWidth(), region->getHeight(),
+                         region->getWidgetCount(),
+                         region->needsUpdate() ? "true" : "false");
 
-            // Clear the region first
-            clearRegion(*region);
+            if (region->needsUpdate()) {
+                Serial.printf("  Region needs update - rendering WITHOUT clearing\n");
+                // TEMPORARILY DISABLE CLEARING TO TEST
+                // clearRegion(*region);
 
-            // Let the region render all its widgets
-            region->render();
+                // Let the region render all its widgets
+                region->render();
+                Serial.printf("  Region rendering complete\n");
+            } else {
+                Serial.printf("  Region does not need update - skipping\n");
+            }
         }
     }
 
-    // Draw layout borders and separators
-    drawLayoutBorders();
+    // Render global layout elements (borders, separators) after all regions
+    if (layoutWidget) {
+        // Create a dummy region that covers the entire display for layout widget
+        LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
+        layoutWidget->render(fullDisplayRegion);
+    }
 
     // Single display update for the entire layout
     displayManager->update();
@@ -366,36 +465,7 @@ void LayoutManager::clearRegion(const LayoutRegion& region) {
     display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 7);
 }
 
-void LayoutManager::drawLayoutBorders() {
-    // Only draw borders if enabled in configuration
-    if (!configManager || !configManager->getConfig().showRegionBorders) {
-        return;
-    }
-
-    // Data-driven border drawing - iterate through regions and draw borders
-    // This is now generic and doesn't assume specific layout structure
-
-    for (size_t i = 0; i < regions.size(); ++i) {
-        LayoutRegion* region = regions[i].get();
-        if (!region) continue;
-
-        // Draw region border
-        int x = region->getX();
-        int y = region->getY();
-        int w = region->getWidth();
-        int h = region->getHeight();
-
-        // Draw a simple border around each region (1 pixel thick)
-        // Top border
-        display.drawLine(x, y, x + w - 1, y, 0);
-        // Bottom border
-        display.drawLine(x, y + h - 1, x + w - 1, y + h - 1, 0);
-        // Left border
-        display.drawLine(x, y, x, y + h - 1, 0);
-        // Right border
-        display.drawLine(x + w - 1, y, x + w - 1, y + h - 1, 0);
-    }
-}
+// drawLayoutBorders() method removed - layout visualization now handled by LayoutWidget
 
 void LayoutManager::forceRefresh() {
     Serial.println("Manual layout refresh triggered by WAKE button");

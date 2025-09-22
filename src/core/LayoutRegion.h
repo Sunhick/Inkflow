@@ -2,6 +2,7 @@
 #define LAYOUT_REGION_H
 
 #include <cstddef>
+#include <WString.h>
 
 // Forward declarations
 class Widget;
@@ -45,6 +46,9 @@ public:
     // Widget initialization
     void initializeWidgets();
 
+    // Widget creation from config
+    void createWidgetsFromConfig(const AppConfig& config, const String& regionId, Inkplate& display);
+
     // Legacy widget management (for backward compatibility)
     void setWidget(Widget* widget);
     Widget* getLegacyWidget() const;
@@ -54,7 +58,7 @@ public:
     // Dirty state tracking
     void markDirty();
     void markClean();
-    bool needsUpdate() const { return isDirty; }
+    bool needsUpdate() const;
 
     // Geometry helper methods
     bool contains(int pointX, int pointY) const;
