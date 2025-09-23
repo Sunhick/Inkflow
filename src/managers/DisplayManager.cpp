@@ -1,6 +1,7 @@
 #include "DisplayManager.h"
+#include "../core/Compositor.h"
 
-DisplayManager::DisplayManager(Inkplate &display) : display(display), preferredDisplayMode(INKPLATE_3BIT) {}
+DisplayManager::DisplayManager(Inkplate &display) : display(display), preferredDisplayMode(INKPLATE_3BIT), compositor(nullptr) {}
 
 void DisplayManager::initialize() {
     display.begin();
@@ -134,4 +135,77 @@ void DisplayManager::setupSmoothText(int size, int color) {
     display.setTextSize(size);
     display.setTextColor(color);
     display.setTextWrap(true);
+}
+
+// Compositor integration methods
+void DisplayManager::setCompositor(Compositor* comp) {
+    compositor = comp;
+    Serial.println("DisplayManager: Compositor set");
+}
+
+Compositor* DisplayManager::getCompositor() const {
+    return compositor;
+}
+
+void DisplayManager::renderWithCompositor() {
+    if (!compositor) {
+        Serial.println("DisplayManager: No compositor available, falling back to direct rendering");
+        update(); // Fallback to direct rendering
+        return;
+    }
+
+    if (!compositor->isInitialized()) {
+        Serial.println("DisplayManager: Compositor not initialized, falling back to direct rendering");
+        update(); // Fallback to direct rendering
+        return;
+    }
+
+    Serial.println("DisplayManager: Performing full render with compositor...");
+
+    // Use compositor to render to display
+    compositor->displayToInkplate(display);
+
+    Serial.println("DisplayManager: Compositor full render complete");
+}
+
+void DisplayManager::partialRenderWithCompositor() {
+    if (!compositor) {
+        Serial.println("DisplayManager: No compositor available for partial render, falling back to smart partial update");
+        smartPartialUpdate(); // Fallback to existing partial update
+        return;
+    }
+
+    if (!compositor->isInitialized()) {
+        Serial.println("DisplayManager: Compositor not initialized for partial render, falling back to smart partial update");
+        smartPartialUpdate(); // Fallback to existing partial update
+        return;
+    }
+
+    // Check if there are any changes to render
+    if (!compositor->hasChangedRegions()) {
+        Serial.println("DisplayManager: No changes detected in compositor, skipping partial render");
+        return;
+    }
+
+    Serial.println("DisplayManager: Performing partial render with compositor...");
+
+    // Store current display mode
+    int currentMode = display.getDisplayMode();
+
+    // Switch to 1-bit mode for partial updates (required for Inkplate partial updates)
+    if (currentMode != INKPLATE_1BIT) {
+        Serial.println("DisplayManager: Switching to 1-bit mode for compositor partial update");
+        display.setDisplayMode(INKPLATE_1BIT);
+    }
+
+    // Use compositor for partial rendering
+    compositor->partialDisplayToInkplate(display);
+
+    // Restore original display mode
+    if (currentMode != INKPLATE_1BIT) {
+        Serial.println("DisplayManager: Restoring display mode after compositor partial update");
+        display.setDisplayMode(currentMode);
+    }
+
+    Serial.println("DisplayManager: Compositor partial render complete");
 }

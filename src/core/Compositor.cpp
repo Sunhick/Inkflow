@@ -258,9 +258,53 @@ void Compositor::displayToInkplate(Inkplate& display) {
 void Compositor::partialDisplayToInkplate(Inkplate& display) {
     if (!virtualSurface || !hasChanges) return;
 
-    // For now, implement as full display update
-    // In a more sophisticated implementation, this would only update changed regions
-    displayToInkplate(display);
+    Serial.println("Compositor: Performing partial display update...");
+
+    // Get changed regions
+    std::vector<LayoutRegion> regions = getChangedRegions();
+
+    if (regions.empty()) {
+        Serial.println("Compositor: No changed regions to update");
+        return;
+    }
+
+    Serial.printf("Compositor: Updating %d changed regions\n", regions.size());
+
+    // Update each changed region
+    for (const auto& region : regions) {
+        Serial.printf("Compositor: Updating region (%d,%d) %dx%d\n",
+                     region.getX(), region.getY(), region.getWidth(), region.getHeight());
+
+        // Copy pixels from virtual surface to display for this region
+        for (int y = region.getY(); y < region.getY() + region.getHeight(); y++) {
+            for (int x = region.getX(); x < region.getX() + region.getWidth(); x++) {
+                if (isValidCoordinate(x, y)) {
+                    uint8_t pixel = getPixel(x, y);
+
+                    // Convert 8-bit grayscale to Inkplate's expected format
+                    uint8_t inkplateColor;
+                    if (pixel >= 224) inkplateColor = 7;      // White
+                    else if (pixel >= 192) inkplateColor = 6;
+                    else if (pixel >= 160) inkplateColor = 5;
+                    else if (pixel >= 128) inkplateColor = 4;
+                    else if (pixel >= 96) inkplateColor = 3;
+                    else if (pixel >= 64) inkplateColor = 2;
+                    else if (pixel >= 32) inkplateColor = 1;
+                    else inkplateColor = 0;                   // Black
+
+                    display.drawPixel(x, y, inkplateColor);
+                }
+            }
+        }
+    }
+
+    // Perform partial display update
+    display.partialUpdate();
+
+    // Reset change tracking after successful partial display
+    resetChangeTracking();
+
+    Serial.println("Compositor: Partial display update complete");
 }
 
 size_t Compositor::getMemoryUsage() const {

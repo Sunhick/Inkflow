@@ -13,10 +13,13 @@ std::unique_ptr<T> make_unique_helper(Args&&... args) {
 }
 
 LayoutManager::LayoutManager()
-    : display(INKPLATE_3BIT), lastUpdate(0), layoutWidget(nullptr) {
+    : display(INKPLATE_3BIT), lastUpdate(0), layoutWidget(nullptr), compositor(nullptr) {
 
     // Initialize config manager
     configManager = new ConfigManager();
+
+    // Initialize compositor
+    compositor = new Compositor(1200, 825); // Inkplate 10 dimensions
 }
 
 LayoutManager::~LayoutManager() {
@@ -24,6 +27,7 @@ LayoutManager::~LayoutManager() {
     delete displayManager;
     delete wifiManager;
     delete layoutWidget; // Clean up global layout widget
+    delete compositor;
 
     // regions vector will automatically clean up unique_ptrs (and regions will clean up their widgets)
 }
@@ -56,6 +60,14 @@ void LayoutManager::begin() {
 
     // Create display manager
     displayManager = new DisplayManager(display);
+
+    // Initialize and integrate compositor with display manager
+    if (compositor && compositor->initialize()) {
+        displayManager->setCompositor(compositor);
+        Serial.println("Compositor initialized and integrated with DisplayManager");
+    } else {
+        Serial.println("Warning: Compositor initialization failed, falling back to direct rendering");
+    }
 
     // Create WiFi manager with config values
     wifiManager = new WiFiManager(config.wifiSSID.c_str(), config.wifiPassword.c_str());
@@ -535,4 +547,73 @@ unsigned long LayoutManager::getDeepSleepThreshold() const {
 
     const AppConfig& config = configManager->getConfig();
     return config.deepSleepThresholdMs;
+}
+
+void LayoutManager::demonstrateCompositorIntegration() {
+    Serial.println("=== COMPOSITOR INTEGRATION DEMONSTRATION ===");
+
+    if (!compositor || !compositor->isInitialized()) {
+        Serial.println("Compositor not available - demonstration skipped");
+        return;
+    }
+
+    if (!displayManager) {
+        Serial.println("DisplayManager not available - demonstration skipped");
+        return;
+    }
+
+    Serial.println("Drawing test pattern on compositor...");
+
+    // Clear compositor surface
+    compositor->clear();
+
+    // Draw a test pattern to demonstrate compositor functionality
+    // Draw border around entire surface
+    compositor->drawRect(0, 0, 1200, 825, 0); // Black border
+
+    // Draw some test rectangles
+    compositor->fillRect(50, 50, 200, 100, 128);   // Gray rectangle
+    compositor->fillRect(300, 50, 200, 100, 64);   // Darker gray rectangle
+    compositor->fillRect(550, 50, 200, 100, 192);  // Light gray rectangle
+
+    // Draw text area simulation (just rectangles for now)
+    compositor->drawRect(50, 200, 700, 50, 0);     // Text area border
+    compositor->fillRect(52, 202, 696, 46, 255);   // White text background
+
+    // Draw some "widget" areas
+    compositor->drawRect(50, 300, 150, 150, 0);    // Widget 1 border
+    compositor->fillRect(52, 302, 146, 146, 224);  // Light background
+
+    compositor->drawRect(250, 300, 150, 150, 0);   // Widget 2 border
+    compositor->fillRect(252, 302, 146, 146, 160); // Medium background
+
+    compositor->drawRect(450, 300, 150, 150, 0);   // Widget 3 border
+    compositor->fillRect(452, 302, 146, 146, 96);  // Darker background
+
+    Serial.println("Test pattern drawn on compositor surface");
+
+    // Demonstrate full rendering with compositor
+    Serial.println("Performing full render with compositor...");
+    displayManager->renderWithCompositor();
+
+    delay(3000); // Show the pattern for 3 seconds
+
+    // Demonstrate partial update
+    Serial.println("Modifying small area for partial update demonstration...");
+
+    // Modify a small area
+    compositor->fillRect(600, 300, 100, 100, 32); // Dark area
+    compositor->drawRect(600, 300, 100, 100, 0);  // Border
+
+    Serial.println("Performing partial render with compositor...");
+    displayManager->partialRenderWithCompositor();
+
+    delay(2000);
+
+    // Clear and return to normal operation
+    Serial.println("Clearing compositor and returning to normal operation...");
+    compositor->clear();
+    displayManager->renderWithCompositor();
+
+    Serial.println("=== COMPOSITOR DEMONSTRATION COMPLETE ===");
 }

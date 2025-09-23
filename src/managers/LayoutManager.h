@@ -2,6 +2,7 @@
 #define LAYOUT_MANAGER_H
 
 #include "../core/LayoutRegion.h"
+#include "../core/Compositor.h"
 #include "DisplayManager.h"
 #include "ConfigManager.h"
 #include "WiFiManager.h"
@@ -45,12 +46,16 @@ public:
     bool shouldEnterDeepSleep() const;
     unsigned long getDeepSleepThreshold() const;
 
+    // Compositor integration demonstration
+    void demonstrateCompositorIntegration();
+
 private:
     // Core components
     Inkplate display;
     ConfigManager* configManager;
     DisplayManager* displayManager;
     WiFiManager* wifiManager;
+    Compositor* compositor;
 
     // Region collection system
     std::vector<std::unique_ptr<LayoutRegion>> regions;

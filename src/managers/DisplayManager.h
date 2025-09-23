@@ -3,6 +3,9 @@
 
 #include <Inkplate.h>
 
+// Forward declaration
+class Compositor;
+
 class DisplayManager {
 public:
     DisplayManager(Inkplate &display);
@@ -17,9 +20,16 @@ public:
     void smartPartialUpdate(); // Optimized partial update for widget regions
     void setupSmoothText(int size, int color = 0); // Helper for smooth text rendering
 
+    // Compositor integration methods
+    void setCompositor(Compositor* compositor);
+    Compositor* getCompositor() const;
+    void renderWithCompositor(); // Full rendering using compositor
+    void partialRenderWithCompositor(); // Partial rendering using compositor
+
 private:
     Inkplate &display;
     int preferredDisplayMode;
+    Compositor* compositor; // Pointer to compositor for advanced rendering
 
     void setTitle(const char* title);
     void setMessage(const char* message, int y = 40);

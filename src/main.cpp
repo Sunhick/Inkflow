@@ -20,6 +20,10 @@ void setup() {
 
     layoutManager.begin();
 
+    // Demonstrate compositor integration
+    Serial.println("Demonstrating compositor integration...");
+    layoutManager.demonstrateCompositorIntegration();
+
     // Force an immediate refresh to load the image
     Serial.println("Waiting for WiFi connection...");
     delay(5000); // Give more time for WiFi to connect
