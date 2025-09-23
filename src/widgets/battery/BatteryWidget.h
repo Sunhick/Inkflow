@@ -3,6 +3,9 @@
 
 #include "../../core/Widget.h"
 
+// Forward declaration
+class Compositor;
+
 class BatteryWidget : public Widget {
 public:
     BatteryWidget(Inkplate& display);
@@ -10,6 +13,7 @@ public:
 
     // Widget interface implementation
     void render(const LayoutRegion& region) override;
+    void renderToCompositor(Compositor& compositor, const LayoutRegion& region) override;
     bool shouldUpdate() override;
     void begin() override;
 
@@ -27,7 +31,9 @@ private:
     static constexpr float MAX_BATTERY_VOLTAGE = 4.2;
 
     void drawBatteryIndicator(const LayoutRegion& region);
+    void drawBatteryIndicatorToCompositor(Compositor& compositor, const LayoutRegion& region);
     void drawBatteryIcon(int x, int y, int percentage, int iconWidth, int iconHeight);
+    void drawBatteryIconToCompositor(Compositor& compositor, int x, int y, int percentage, int iconWidth, int iconHeight);
 };
 
 #endif

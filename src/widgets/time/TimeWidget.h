@@ -4,6 +4,9 @@
 #include "../../core/Widget.h"
 #include <WiFi.h>
 
+// Forward declaration
+class Compositor;
+
 class TimeWidget : public Widget {
 public:
     TimeWidget(Inkplate& display);
@@ -11,6 +14,7 @@ public:
 
     // Widget interface implementation
     void render(const LayoutRegion& region) override;
+    void renderToCompositor(Compositor& compositor, const LayoutRegion& region) override;
     bool shouldUpdate() override;
     void begin() override;
 
@@ -34,6 +38,7 @@ private:
     static const int DAYLIGHT_OFFSET_SEC = 3600; // 1 hour
 
     void drawTimeDisplay(const LayoutRegion& region);
+    void drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region);
 };
 
 #endif

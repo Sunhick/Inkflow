@@ -15,6 +15,15 @@ Compositor::Compositor(int width, int height)
     , memoryPressureThreshold(1024 * 1024)  // 1MB default threshold
     , maxRetryAttempts(3) {
 
+    // Initialize performance metrics
+    metrics = {0, 0, 0, 0, 0.0f, 0.0f};
+
+    // Initialize optimization parameters with sensible defaults
+    maxRegionMergeDistance = 50;  // pixels
+    minRegionSizeForPartialUpdate = 100;  // minimum 100 pixels for partial update
+    updateFrequencyThreshold = 1000;  // milliseconds
+    regionMergeEfficiencyThreshold = 0.7f;  // 70% efficiency threshold
+
     // Validate dimensions
     if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
         setError(CompositorError::InvalidDimensions);
@@ -122,6 +131,7 @@ void Compositor::cleanup() {
 
     changedAreas.clear();
     hasChanges = false;
+    regionHistory.clear();
 }
 
 void Compositor::clear() {
@@ -335,8 +345,8 @@ bool Compositor::markRegionChanged(const LayoutRegion& region) {
             }
         }
 
-        // Merge overlapping regions to optimize partial updates
-        mergeOverlappingRegions();
+        // Optimize regions for partial updates
+        optimizeRegionsForPartialUpdate();
         return true;
     } catch (...) {
         setError(CompositorError::MemoryAllocationFailed);
@@ -426,21 +436,43 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display) {
         return true; // Not an error, just nothing to do
     }
 
+    // Get changed regions and optimize them
+    std::vector<LayoutRegion> regions = getChangedRegions();
+    return partialDisplayToInkplate(display, regions);
+}
+
+bool Compositor::partialDisplayToInkplate(Inkplate& display, const std::vector<LayoutRegion>& specificRegions) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        logError("partialDisplayToInkplate", lastError);
+        return false;
+    }
+
+    if (specificRegions.empty()) {
+        Serial.println("Compositor: No regions to update");
+        return true;
+    }
+
     try {
-        Serial.println("Compositor: Performing partial display update...");
+        unsigned long startTime = millis();
+        Serial.println("Compositor: Performing optimized partial display update...");
 
-        // Get changed regions
-        std::vector<LayoutRegion> regions = getChangedRegions();
+        // Optimize regions for efficient partial updates
+        std::vector<LayoutRegion> optimizedRegions = coalesceRegions(specificRegions);
 
-        if (regions.empty()) {
-            Serial.println("Compositor: No changed regions to update");
-            return true;
+        // Check if we should use partial update or fall back to full update
+        if (!shouldUsePartialUpdate(optimizedRegions)) {
+            Serial.println("Compositor: Falling back to full display update for efficiency");
+            return displayToInkplate(display);
         }
 
-        Serial.printf("Compositor: Updating %d changed regions\n", regions.size());
+        Serial.printf("Compositor: Optimized %d regions to %d for update\n",
+                     specificRegions.size(), optimizedRegions.size());
 
-        // Update each changed region
-        for (const auto& region : regions) {
+        size_t totalPixelsUpdated = 0;
+
+        // Update each optimized region
+        for (const auto& region : optimizedRegions) {
             Serial.printf("Compositor: Updating region (%d,%d) %dx%d\n",
                          region.getX(), region.getY(), region.getWidth(), region.getHeight());
 
@@ -469,18 +501,28 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display) {
                         else inkplateColor = 0;                   // Black
 
                         display.drawPixel(x, y, inkplateColor);
+                        totalPixelsUpdated++;
                     }
                 }
             }
+
+            // Update region history for future optimization
+            unsigned long regionUpdateTime = millis() - startTime;
+            updateRegionHistory(region, regionUpdateTime);
         }
 
         // Perform partial display update
         display.partialUpdate();
 
+        // Update performance metrics
+        unsigned long totalUpdateTime = millis() - startTime;
+        updatePerformanceMetrics(totalUpdateTime, totalPixelsUpdated);
+
         // Reset change tracking after successful partial display
         resetChangeTracking();
 
-        Serial.println("Compositor: Partial display update completed successfully");
+        Serial.printf("Compositor: Partial display update completed in %lums (%d pixels)\n",
+                     totalUpdateTime, totalPixelsUpdated);
         return true;
     } catch (...) {
         setError(CompositorError::DisplayUpdateFailed);
@@ -660,4 +702,161 @@ bool Compositor::recoverFromError() {
             Serial.printf("Compositor: Cleared error: %s\n", getErrorString(originalError));
             return true;
     }
+}
+
+// Partial update optimization methods
+
+void Compositor::optimizeRegionsForPartialUpdate() {
+    if (changedAreas.size() <= 1) return;
+
+    // First merge overlapping regions
+    mergeOverlappingRegions();
+
+    // Then apply intelligent coalescing
+    changedAreas = coalesceRegions(changedAreas);
+}
+
+bool Compositor::shouldMergeRegions(const LayoutRegion& a, const LayoutRegion& b) const {
+    // Calculate distance between regions
+    int centerAX = a.getX() + a.getWidth() / 2;
+    int centerAY = a.getY() + a.getHeight() / 2;
+    int centerBX = b.getX() + b.getWidth() / 2;
+    int centerBY = b.getY() + b.getHeight() / 2;
+
+    int distance = abs(centerAX - centerBX) + abs(centerAY - centerBY); // Manhattan distance
+
+    if (distance > static_cast<int>(maxRegionMergeDistance)) {
+        return false;
+    }
+
+    // Calculate merge efficiency
+    LayoutRegion merged = mergeRegions(a, b);
+    float efficiency = calculateRegionMergeEfficiency(merged, a, b);
+
+    return efficiency >= regionMergeEfficiencyThreshold;
+}
+
+std::vector<LayoutRegion> Compositor::coalesceRegions(const std::vector<LayoutRegion>& regions) const {
+    if (regions.size() <= 1) return regions;
+
+    std::vector<LayoutRegion> result = regions;
+
+    // Iteratively merge regions that should be combined
+    bool merged = true;
+    while (merged && result.size() > 1) {
+        merged = false;
+        for (size_t i = 0; i < result.size() && !merged; i++) {
+            for (size_t j = i + 1; j < result.size(); j++) {
+                if (shouldMergeRegions(result[i], result[j])) {
+                    // Merge regions
+                    LayoutRegion mergedRegion = mergeRegions(result[i], result[j]);
+                    result[i] = mergedRegion;
+                    result.erase(result.begin() + j);
+                    merged = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Filter out regions that are too small for partial update
+    std::vector<LayoutRegion> filteredResult;
+    for (const auto& region : result) {
+        size_t regionSize = static_cast<size_t>(region.getWidth()) * region.getHeight();
+        if (regionSize >= minRegionSizeForPartialUpdate) {
+            filteredResult.push_back(region);
+        }
+    }
+
+    return filteredResult.empty() ? result : filteredResult;
+}
+
+void Compositor::updateRegionHistory(const LayoutRegion& region, unsigned long updateTime) {
+    unsigned long currentTime = millis();
+
+    // Look for existing history entry for similar region
+    for (auto& history : regionHistory) {
+        if (abs(history.region.getX() - region.getX()) <= 10 &&
+            abs(history.region.getY() - region.getY()) <= 10 &&
+            abs(history.region.getWidth() - region.getWidth()) <= 10 &&
+            abs(history.region.getHeight() - region.getHeight()) <= 10) {
+
+            // Update existing entry
+            history.lastUpdateTime = currentTime;
+            history.updateFrequency++;
+            history.totalUpdateTime += updateTime;
+            return;
+        }
+    }
+
+    // Add new history entry
+    RegionUpdateHistory newHistory = {region, currentTime, 1, updateTime};
+    regionHistory.push_back(newHistory);
+
+    // Limit history size to prevent memory growth
+    if (regionHistory.size() > 100) {
+        // Remove oldest entries
+        regionHistory.erase(regionHistory.begin(), regionHistory.begin() + 20);
+    }
+}
+
+bool Compositor::shouldUsePartialUpdate(const std::vector<LayoutRegion>& regions) const {
+    if (regions.empty()) return false;
+
+    // Calculate total area to be updated
+    size_t totalUpdateArea = 0;
+    for (const auto& region : regions) {
+        totalUpdateArea += static_cast<size_t>(region.getWidth()) * region.getHeight();
+    }
+
+    // Calculate total surface area
+    size_t totalSurfaceArea = static_cast<size_t>(surfaceWidth) * surfaceHeight;
+
+    // Use partial update if updating less than 30% of the surface
+    float updateRatio = static_cast<float>(totalUpdateArea) / totalSurfaceArea;
+
+    if (updateRatio > 0.3f) {
+        Serial.printf("Compositor: Update ratio %.2f%% too high for partial update\n", updateRatio * 100);
+        return false;
+    }
+
+    // Check if regions are too fragmented
+    if (regions.size() > 10) {
+        Serial.printf("Compositor: Too many regions (%d) for efficient partial update\n", regions.size());
+        return false;
+    }
+
+    return true;
+}
+
+void Compositor::updatePerformanceMetrics(unsigned long updateTime, size_t pixelsUpdated) {
+    metrics.lastUpdateTime = millis();
+    metrics.updateCount++;
+    metrics.totalUpdateTime += updateTime;
+    metrics.totalPixelsUpdated += pixelsUpdated;
+
+    // Calculate running averages
+    if (metrics.updateCount > 0) {
+        metrics.averageUpdateTime = static_cast<float>(metrics.totalUpdateTime) / metrics.updateCount;
+        metrics.averagePixelsPerUpdate = static_cast<float>(metrics.totalPixelsUpdated) / metrics.updateCount;
+    }
+}
+
+float Compositor::calculateRegionMergeEfficiency(const LayoutRegion& merged, const LayoutRegion& a, const LayoutRegion& b) const {
+    // Calculate areas
+    size_t areaA = static_cast<size_t>(a.getWidth()) * a.getHeight();
+    size_t areaB = static_cast<size_t>(b.getWidth()) * b.getHeight();
+    size_t areaMerged = static_cast<size_t>(merged.getWidth()) * merged.getHeight();
+
+    // Calculate efficiency as ratio of useful area to total merged area
+    size_t usefulArea = areaA + areaB;
+
+    if (areaMerged == 0) return 0.0f;
+
+    return static_cast<float>(usefulArea) / areaMerged;
+}
+
+void Compositor::resetPerformanceMetrics() {
+    metrics = {0, 0, 0, 0, 0.0f, 0.0f};
+    regionHistory.clear();
 }

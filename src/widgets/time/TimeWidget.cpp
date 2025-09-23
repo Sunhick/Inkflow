@@ -1,4 +1,5 @@
 #include "TimeWidget.h"
+#include "../../core/Compositor.h"
 
 const char* TimeWidget::NTP_SERVER = "pool.ntp.org";
 
@@ -48,6 +49,25 @@ void TimeWidget::render(const LayoutRegion& region) {
 
     lastTimeUpdate = millis();
     Serial.printf("TimeWidget::render() completed - lastTimeUpdate set to %lu\n", lastTimeUpdate);
+}
+
+void TimeWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    Serial.printf("TimeWidget::renderToCompositor() called - region: %dx%d at (%d,%d)\n",
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+
+    // Sync time if not initialized
+    if (!timeInitialized) {
+        Serial.println("Time not initialized, attempting NTP sync...");
+        syncTimeWithNTP();
+    }
+
+    // Draw time content to compositor within the region
+    Serial.println("About to call drawTimeDisplayToCompositor()...");
+    drawTimeDisplayToCompositor(compositor, region);
+    Serial.println("drawTimeDisplayToCompositor() completed");
+
+    lastTimeUpdate = millis();
+    Serial.printf("TimeWidget::renderToCompositor() completed - lastTimeUpdate set to %lu\n", lastTimeUpdate);
 }
 
 void TimeWidget::syncTimeWithNTP() {
@@ -193,4 +213,43 @@ bool TimeWidget::isTimeInitialized() const {
 void TimeWidget::forceUpdate() {
     Serial.println("Force updating time widget...");
     lastTimeUpdate = 0; // Force next shouldUpdate() to return true
+}
+
+void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    Serial.println("TimeWidget::drawTimeDisplayToCompositor() - Drawing time to compositor");
+
+    int margin = 10;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
+
+    // For compositor rendering, we need to draw text as filled rectangles
+    // This is a simplified implementation - in a full implementation you'd want
+    // to render actual text to the compositor surface
+
+    // Draw "DATE TIME" label area (simplified as a rectangle)
+    compositor.fillRect(labelX, labelY + 15, 120, 20, 0); // Black rectangle for label
+    Serial.println("Drew DATE TIME label area to compositor");
+
+    if (!timeInitialized) {
+        // Draw "SYNC FAIL" area
+        compositor.fillRect(labelX, labelY + 55, 100, 20, 0); // Black rectangle
+        Serial.println("Drew SYNC FAIL area to compositor");
+        return;
+    }
+
+    // Draw time area (larger rectangle)
+    compositor.fillRect(labelX, labelY + 50, 180, 30, 0); // Black rectangle for time
+    Serial.println("Drew time area to compositor");
+
+    // Draw date area
+    compositor.fillRect(labelX, labelY + 100, 200, 20, 0); // Black rectangle for date
+    Serial.println("Drew date area to compositor");
+
+    // Draw day area
+    compositor.fillRect(labelX, labelY + 130, 150, 20, 0); // Black rectangle for day
+    Serial.println("Drew day area to compositor");
+
+    // Note: This is a simplified implementation. For proper text rendering to compositor,
+    // you would need to implement a text rendering system that draws to the compositor
+    // surface pixel by pixel, or use a graphics library that can render to a buffer.
 }

@@ -3,8 +3,17 @@
 
 #include <cstdint>
 #include <vector>
+#ifdef UNIT_TEST
+#include "../../test/mocks/MockInkplate.h"
+#else
 #include <Inkplate.h>
+#endif
+#ifndef UNIT_TEST
 #include "LayoutRegion.h"
+#else
+// Forward declaration for unit tests - will be defined by test
+class LayoutRegion;
+#endif
 
 /**
  * Error codes for Compositor operations
@@ -37,6 +46,31 @@ private:
     std::vector<LayoutRegion> changedAreas;
     bool hasChanges;
 
+    // Partial update optimization
+    struct UpdateMetrics {
+        unsigned long lastUpdateTime;
+        unsigned long updateCount;
+        unsigned long totalUpdateTime;
+        size_t totalPixelsUpdated;
+        float averageUpdateTime;
+        float averagePixelsPerUpdate;
+    };
+    UpdateMetrics metrics;
+
+    struct RegionUpdateHistory {
+        LayoutRegion region;
+        unsigned long lastUpdateTime;
+        unsigned int updateFrequency;
+        unsigned long totalUpdateTime;
+    };
+    std::vector<RegionUpdateHistory> regionHistory;
+
+    // Optimization parameters
+    size_t maxRegionMergeDistance;
+    size_t minRegionSizeForPartialUpdate;
+    unsigned long updateFrequencyThreshold;
+    float regionMergeEfficiencyThreshold;
+
     // Error handling and recovery
     CompositorError lastError;
     bool fallbackMode;
@@ -47,6 +81,15 @@ private:
     void mergeOverlappingRegions();
     bool regionsOverlap(const LayoutRegion& a, const LayoutRegion& b) const;
     LayoutRegion mergeRegions(const LayoutRegion& a, const LayoutRegion& b) const;
+
+    // Partial update optimization methods
+    void optimizeRegionsForPartialUpdate();
+    bool shouldMergeRegions(const LayoutRegion& a, const LayoutRegion& b) const;
+    std::vector<LayoutRegion> coalesceRegions(const std::vector<LayoutRegion>& regions) const;
+    void updateRegionHistory(const LayoutRegion& region, unsigned long updateTime);
+    bool shouldUsePartialUpdate(const std::vector<LayoutRegion>& regions) const;
+    void updatePerformanceMetrics(unsigned long updateTime, size_t pixelsUpdated);
+    float calculateRegionMergeEfficiency(const LayoutRegion& merged, const LayoutRegion& a, const LayoutRegion& b) const;
 
     // Helper methods
     size_t getPixelIndex(int x, int y) const;
@@ -92,10 +135,24 @@ public:
     // Display output (with error handling)
     bool displayToInkplate(Inkplate& display);
     bool partialDisplayToInkplate(Inkplate& display);
+    bool partialDisplayToInkplate(Inkplate& display, const std::vector<LayoutRegion>& specificRegions);
 
     // Status and diagnostics
     bool isInitialized() const { return virtualSurface != nullptr; }
     size_t getMemoryUsage() const;
+
+    // Performance monitoring
+    UpdateMetrics getPerformanceMetrics() const { return metrics; }
+    void resetPerformanceMetrics();
+    float getAverageUpdateTime() const { return metrics.averageUpdateTime; }
+    float getAveragePixelsPerUpdate() const { return metrics.averagePixelsPerUpdate; }
+    size_t getRegionHistorySize() const { return regionHistory.size(); }
+
+    // Optimization configuration
+    void setMaxRegionMergeDistance(size_t distance) { maxRegionMergeDistance = distance; }
+    void setMinRegionSizeForPartialUpdate(size_t size) { minRegionSizeForPartialUpdate = size; }
+    void setUpdateFrequencyThreshold(unsigned long threshold) { updateFrequencyThreshold = threshold; }
+    void setRegionMergeEfficiencyThreshold(float threshold) { regionMergeEfficiencyThreshold = threshold; }
 
     // Error handling and recovery
     CompositorError getLastError() const { return lastError; }
