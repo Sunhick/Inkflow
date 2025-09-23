@@ -171,6 +171,8 @@ void LayoutManager::createAndAssignWidgets() {
         Serial.printf("Created TimeWidget for region: %s\n", dateTimeConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(dateTimeConfig.region);
         if (region) {
+            Serial.printf("  TimeWidget region bounds: (%d,%d) %dx%d\n",
+                         region->getX(), region->getY(), region->getWidth(), region->getHeight());
             region->addWidget(widget);
             Serial.printf("  TimeWidget successfully assigned to region %s (region has %d widgets)\n",
                          dateTimeConfig.region.c_str(), region->getWidgetCount());
@@ -188,6 +190,8 @@ void LayoutManager::createAndAssignWidgets() {
         Serial.printf("Created BatteryWidget for region: %s\n", batteryConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(batteryConfig.region);
         if (region) {
+            Serial.printf("  BatteryWidget region bounds: (%d,%d) %dx%d\n",
+                         region->getX(), region->getY(), region->getWidth(), region->getHeight());
             region->addWidget(widget);
             Serial.printf("  BatteryWidget successfully assigned to region %s (region has %d widgets)\n",
                          batteryConfig.region.c_str(), region->getWidgetCount());
@@ -454,6 +458,9 @@ void LayoutManager::renderAllRegions() {
                              region->getWidgetCount());
 
                 // Clear region on compositor with error checking
+                Serial.printf("Clearing region (%d,%d) %dx%d on compositor\n",
+                             region->getX(), region->getY(),
+                             region->getWidth(), region->getHeight());
                 if (!compositor->clearRegion(*region)) {
                     Serial.printf("Failed to clear region on compositor, error: %s\n",
                                  compositor->getErrorString(compositor->getLastError()));

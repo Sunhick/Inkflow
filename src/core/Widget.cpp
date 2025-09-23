@@ -18,8 +18,8 @@ void Widget::resetClipRegion() {
 }
 
 void Widget::clearRegionOnCompositor(Compositor& compositor, const LayoutRegion& region) {
-    // Clear region on compositor surface with white background (color 7)
-    compositor.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 7);
+    // Clear region on compositor surface with white background (color 255 for 8-bit grayscale)
+    compositor.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 255);
 
     // Mark the region as changed for partial updates
     compositor.markRegionChanged(region);

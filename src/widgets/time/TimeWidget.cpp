@@ -34,7 +34,8 @@ void TimeWidget::render(const LayoutRegion& region) {
     Serial.printf("TimeWidget::render() called - region: %dx%d at (%d,%d)\n",
                   region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
-    // Region is already cleared by LayoutManager - don't clear again
+    // Clear the region before drawing to prevent text overwriting
+    clearRegion(region);
 
     // Sync time if not initialized
     if (!timeInitialized) {
@@ -54,6 +55,9 @@ void TimeWidget::render(const LayoutRegion& region) {
 void TimeWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
     Serial.printf("TimeWidget::renderToCompositor() called - region: %dx%d at (%d,%d)\n",
                   region.getWidth(), region.getHeight(), region.getX(), region.getY());
+
+    // Clear the region on compositor before drawing to prevent text overwriting
+    clearRegionOnCompositor(compositor, region);
 
     // Sync time if not initialized
     if (!timeInitialized) {
@@ -113,10 +117,14 @@ void TimeWidget::syncTimeWithNTP() {
 
 void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
     Serial.println("TimeWidget::drawTimeDisplay() - Drawing normal time display");
+    Serial.printf("TimeWidget region bounds: (%d,%d) %dx%d\n",
+                  region.getX(), region.getY(), region.getWidth(), region.getHeight());
 
     int margin = 10;
     int labelX = region.getX() + margin;
     int labelY = region.getY() + margin;
+
+    Serial.printf("TimeWidget drawing at labelX=%d, labelY=%d\n", labelX, labelY);
 
     // Draw "DATE TIME" label
     display.setCursor(labelX, labelY + 20);

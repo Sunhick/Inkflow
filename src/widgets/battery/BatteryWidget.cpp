@@ -23,7 +23,9 @@ void BatteryWidget::render(const LayoutRegion& region) {
     Serial.printf("BatteryWidget::render() called - region: %dx%d at (%d,%d)\n",
                   region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
-    // Region is already cleared by LayoutManager - don't clear again
+    // Clear the region before drawing to prevent text overwriting
+    clearRegion(region);
+
     // Draw battery content within the region
     Serial.println("About to call drawBatteryIndicator()...");
     drawBatteryIndicator(region);
@@ -36,6 +38,9 @@ void BatteryWidget::render(const LayoutRegion& region) {
 void BatteryWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
     Serial.printf("BatteryWidget::renderToCompositor() called - region: %dx%d at (%d,%d)\n",
                   region.getWidth(), region.getHeight(), region.getX(), region.getY());
+
+    // Clear the region on compositor before drawing to prevent text overwriting
+    clearRegionOnCompositor(compositor, region);
 
     // Draw battery content to compositor within the region
     Serial.println("About to call drawBatteryIndicatorToCompositor()...");
@@ -74,11 +79,15 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     float voltage = getBatteryVoltage();
 
     Serial.printf("BatteryWidget::drawBatteryIndicator() - Drawing battery: %d%% (%.2fV)\n", percentage, voltage);
+    Serial.printf("BatteryWidget region bounds: (%d,%d) %dx%d\n",
+                  region.getX(), region.getY(), region.getWidth(), region.getHeight());
 
     // Calculate positions within the region
     int margin = 10;
     int labelX = region.getX() + margin;
     int labelY = region.getY() + margin;
+
+    Serial.printf("BatteryWidget drawing at labelX=%d, labelY=%d\n", labelX, labelY);
 
     // Draw "BATTERY" label
     display.setCursor(labelX, labelY + 20);
