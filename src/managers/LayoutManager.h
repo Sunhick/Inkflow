@@ -46,6 +46,10 @@ public:
     bool shouldEnterDeepSleep() const;
     unsigned long getDeepSleepThreshold() const;
 
+    // Widget-region assignment methods
+    bool assignWidgetToRegion(Widget* widget, const String& regionId);
+    bool removeWidgetFromRegion(Widget* widget, const String& regionId);
+
     // Compositor integration demonstration
     void demonstrateCompositorIntegration();
 
@@ -76,6 +80,7 @@ private:
     void handleWidgetUpdates();
     bool ensureConnectivity();
     void renderAllRegions();
+    void renderChangedRegions(); // New method for partial updates
     void clearRegion(const LayoutRegion& region);
     // drawLayoutBorders() removed - now handled by LayoutWidget
 };

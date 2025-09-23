@@ -401,7 +401,7 @@ void LayoutManager::handleWidgetUpdates() {
     // Only update display if regions actually need updating
     if (needsUpdate) {
         Serial.println("Rendering updated regions...");
-        renderAllRegions();
+        renderChangedRegions(); // Use partial update for better performance
     }
 }
 
@@ -435,41 +435,166 @@ bool LayoutManager::ensureConnectivity() {
 void LayoutManager::renderAllRegions() {
     Serial.println("Rendering all regions...");
 
-    // Each region is responsible for rendering its own widgets
-    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
-        LayoutRegion* region = it->get();
-        if (region) {
-            Serial.printf("Region at (%d,%d) %dx%d has %d widgets, needsUpdate: %s\n",
-                         region->getX(), region->getY(),
-                         region->getWidth(), region->getHeight(),
-                         region->getWidgetCount(),
-                         region->needsUpdate() ? "true" : "false");
+    // Use compositor if available, otherwise fall back to direct rendering
+    if (compositor && compositor->isInitialized() && displayManager->getCompositor()) {
+        Serial.println("Using compositor for rendering all regions");
 
-            if (region->needsUpdate()) {
-                Serial.printf("  Region needs update - rendering WITHOUT clearing\n");
-                // TEMPORARILY DISABLE CLEARING TO TEST
-                // clearRegion(*region);
+        // Clear compositor surface
+        compositor->clear();
+
+        // Render each region to compositor
+        for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+            LayoutRegion* region = it->get();
+            if (region) {
+                Serial.printf("Rendering region at (%d,%d) %dx%d with %d widgets to compositor\n",
+                             region->getX(), region->getY(),
+                             region->getWidth(), region->getHeight(),
+                             region->getWidgetCount());
+
+                // Clear region on compositor
+                compositor->clearRegion(*region);
+
+                // Render all widgets in the region to compositor
+                for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                    Widget* widget = region->getWidget(i);
+                    if (widget) {
+                        widget->renderToCompositor(*compositor, *region);
+                    }
+                }
+
+                // Handle legacy widget if present
+                if (region->getLegacyWidget()) {
+                    region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                }
+
+                // Mark region as clean after rendering
+                region->markClean();
+            }
+        }
+
+        // Render global layout elements (borders, separators) to compositor
+        if (layoutWidget) {
+            LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
+            layoutWidget->renderToCompositor(*compositor, fullDisplayRegion);
+        }
+
+        // Display compositor content to Inkplate
+        displayManager->renderWithCompositor();
+    } else {
+        Serial.println("Using direct rendering for all regions (compositor not available)");
+
+        // Fall back to direct rendering
+        for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+            LayoutRegion* region = it->get();
+            if (region) {
+                Serial.printf("Region at (%d,%d) %dx%d has %d widgets, needsUpdate: %s\n",
+                             region->getX(), region->getY(),
+                             region->getWidth(), region->getHeight(),
+                             region->getWidgetCount(),
+                             region->needsUpdate() ? "true" : "false");
+
+                if (region->needsUpdate()) {
+                    Serial.printf("  Region needs update - rendering\n");
+
+                    // Let the region render all its widgets
+                    region->render();
+                    Serial.printf("  Region rendering complete\n");
+                } else {
+                    Serial.printf("  Region does not need update - skipping\n");
+                }
+            }
+        }
+
+        // Render global layout elements (borders, separators) after all regions
+        if (layoutWidget) {
+            LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
+            layoutWidget->render(fullDisplayRegion);
+        }
+
+        // Single display update for the entire layout
+        displayManager->update();
+    }
+
+    Serial.println("Region rendering complete");
+}
+
+void LayoutManager::renderChangedRegions() {
+    Serial.println("Rendering changed regions...");
+
+    // Use compositor if available for efficient partial updates
+    if (compositor && compositor->isInitialized() && displayManager->getCompositor()) {
+        Serial.println("Using compositor for partial region rendering");
+
+        bool hasChanges = false;
+
+        // Check which regions need updates and render them to compositor
+        for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+            LayoutRegion* region = it->get();
+            if (region && region->needsUpdate()) {
+                Serial.printf("Rendering changed region at (%d,%d) %dx%d with %d widgets to compositor\n",
+                             region->getX(), region->getY(),
+                             region->getWidth(), region->getHeight(),
+                             region->getWidgetCount());
+
+                // Clear region on compositor
+                compositor->clearRegion(*region);
+
+                // Render all widgets in the region to compositor
+                for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                    Widget* widget = region->getWidget(i);
+                    if (widget) {
+                        widget->renderToCompositor(*compositor, *region);
+                    }
+                }
+
+                // Handle legacy widget if present
+                if (region->getLegacyWidget()) {
+                    region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                }
+
+                // Mark region as clean after rendering
+                region->markClean();
+                hasChanges = true;
+            }
+        }
+
+        // Only update display if there were actual changes
+        if (hasChanges) {
+            Serial.println("Changes detected, performing partial display update");
+            displayManager->partialRenderWithCompositor();
+        } else {
+            Serial.println("No changes detected, skipping display update");
+        }
+    } else {
+        Serial.println("Using direct rendering for changed regions (compositor not available)");
+
+        // Fall back to direct rendering with smart partial update
+        bool hasChanges = false;
+
+        for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+            LayoutRegion* region = it->get();
+            if (region && region->needsUpdate()) {
+                Serial.printf("Rendering changed region at (%d,%d) %dx%d with %d widgets\n",
+                             region->getX(), region->getY(),
+                             region->getWidth(), region->getHeight(),
+                             region->getWidgetCount());
 
                 // Let the region render all its widgets
                 region->render();
-                Serial.printf("  Region rendering complete\n");
-            } else {
-                Serial.printf("  Region does not need update - skipping\n");
+                hasChanges = true;
             }
+        }
+
+        // Only update display if there were actual changes
+        if (hasChanges) {
+            Serial.println("Changes detected, performing smart partial update");
+            displayManager->smartPartialUpdate();
+        } else {
+            Serial.println("No changes detected, skipping display update");
         }
     }
 
-    // Render global layout elements (borders, separators) after all regions
-    if (layoutWidget) {
-        // Create a dummy region that covers the entire display for layout widget
-        LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
-        layoutWidget->render(fullDisplayRegion);
-    }
-
-    // Single display update for the entire layout
-    displayManager->update();
-
-    Serial.println("Region rendering complete");
+    Serial.println("Changed region rendering complete");
 }
 
 void LayoutManager::clearRegion(const LayoutRegion& region) {
@@ -493,7 +618,7 @@ void LayoutManager::forceRefresh() {
             }
         }
 
-        // Render all regions
+        // Use compositor-based rendering for full refresh
         renderAllRegions();
 
         // Update the last update time to reset the scheduled timer
@@ -616,4 +741,67 @@ void LayoutManager::demonstrateCompositorIntegration() {
     displayManager->renderWithCompositor();
 
     Serial.println("=== COMPOSITOR DEMONSTRATION COMPLETE ===");
+}
+
+bool LayoutManager::assignWidgetToRegion(Widget* widget, const String& regionId) {
+    if (!widget) {
+        Serial.printf("ERROR: Cannot assign null widget to region '%s'\n", regionId.c_str());
+        return false;
+    }
+
+    LayoutRegion* region = getRegionById(regionId);
+    if (!region) {
+        Serial.printf("ERROR: Region '%s' not found for widget assignment\n", regionId.c_str());
+        return false;
+    }
+
+    // Add widget to region
+    size_t index = region->addWidget(widget);
+    if (index == SIZE_MAX) {
+        Serial.printf("ERROR: Failed to add widget to region '%s'\n", regionId.c_str());
+        return false;
+    }
+
+    Serial.printf("Successfully assigned widget to region '%s' (index %d)\n", regionId.c_str(), index);
+
+    // Initialize the widget if it hasn't been initialized yet
+    widget->begin();
+
+    // Mark region as dirty to trigger re-render
+    region->markDirty();
+
+    return true;
+}
+
+bool LayoutManager::removeWidgetFromRegion(Widget* widget, const String& regionId) {
+    if (!widget) {
+        Serial.printf("ERROR: Cannot remove null widget from region '%s'\n", regionId.c_str());
+        return false;
+    }
+
+    LayoutRegion* region = getRegionById(regionId);
+    if (!region) {
+        Serial.printf("ERROR: Region '%s' not found for widget removal\n", regionId.c_str());
+        return false;
+    }
+
+    // Find and remove the widget from the region
+    for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+        if (region->getWidget(i) == widget) {
+            if (region->removeWidget(i)) {
+                Serial.printf("Successfully removed widget from region '%s' (was at index %d)\n", regionId.c_str(), i);
+
+                // Mark region as dirty to trigger re-render
+                region->markDirty();
+
+                return true;
+            } else {
+                Serial.printf("ERROR: Failed to remove widget from region '%s' at index %d\n", regionId.c_str(), i);
+                return false;
+            }
+        }
+    }
+
+    Serial.printf("ERROR: Widget not found in region '%s'\n", regionId.c_str());
+    return false;
 }
