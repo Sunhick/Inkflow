@@ -20,11 +20,11 @@ public:
     void smartPartialUpdate(); // Optimized partial update for widget regions
     void setupSmoothText(int size, int color = 0); // Helper for smooth text rendering
 
-    // Compositor integration methods
+    // Compositor integration methods (with error handling)
     void setCompositor(Compositor* compositor);
     Compositor* getCompositor() const;
-    void renderWithCompositor(); // Full rendering using compositor
-    void partialRenderWithCompositor(); // Partial rendering using compositor
+    bool renderWithCompositor(); // Full rendering using compositor
+    bool partialRenderWithCompositor(); // Partial rendering using compositor
 
 private:
     Inkplate &display;

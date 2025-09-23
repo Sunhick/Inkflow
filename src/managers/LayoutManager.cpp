@@ -436,13 +436,15 @@ void LayoutManager::renderAllRegions() {
     Serial.println("Rendering all regions...");
 
     // Use compositor if available, otherwise fall back to direct rendering
-    if (compositor && compositor->isInitialized() && displayManager->getCompositor()) {
+    if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
         Serial.println("Using compositor for rendering all regions");
 
         // Clear compositor surface
         compositor->clear();
 
-        // Render each region to compositor
+        bool compositorRenderingSuccessful = true;
+
+        // Render each region to compositor with error handling
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region) {
@@ -451,20 +453,37 @@ void LayoutManager::renderAllRegions() {
                              region->getWidth(), region->getHeight(),
                              region->getWidgetCount());
 
-                // Clear region on compositor
-                compositor->clearRegion(*region);
+                // Clear region on compositor with error checking
+                if (!compositor->clearRegion(*region)) {
+                    Serial.printf("Failed to clear region on compositor, error: %s\n",
+                                 compositor->getErrorString(compositor->getLastError()));
+                    compositorRenderingSuccessful = false;
+                    continue;
+                }
 
-                // Render all widgets in the region to compositor
+                // Render all widgets in the region to compositor with error isolation
                 for (size_t i = 0; i < region->getWidgetCount(); ++i) {
                     Widget* widget = region->getWidget(i);
                     if (widget) {
-                        widget->renderToCompositor(*compositor, *region);
+                        try {
+                            widget->renderToCompositor(*compositor, *region);
+                        } catch (...) {
+                            Serial.printf("Widget rendering failed for widget %zu in region (%d,%d)\n",
+                                         i, region->getX(), region->getY());
+                            // Continue with other widgets
+                        }
                     }
                 }
 
-                // Handle legacy widget if present
+                // Handle legacy widget if present with error isolation
                 if (region->getLegacyWidget()) {
-                    region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                    try {
+                        region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                    } catch (...) {
+                        Serial.printf("Legacy widget rendering failed in region (%d,%d)\n",
+                                     region->getX(), region->getY());
+                        // Continue with other regions
+                    }
                 }
 
                 // Mark region as clean after rendering
@@ -472,18 +491,46 @@ void LayoutManager::renderAllRegions() {
             }
         }
 
-        // Render global layout elements (borders, separators) to compositor
+        // Render global layout elements (borders, separators) to compositor with error handling
         if (layoutWidget) {
-            LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
-            layoutWidget->renderToCompositor(*compositor, fullDisplayRegion);
+            try {
+                LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
+                layoutWidget->renderToCompositor(*compositor, fullDisplayRegion);
+            } catch (...) {
+                Serial.println("Layout widget rendering failed");
+                compositorRenderingSuccessful = false;
+            }
         }
 
-        // Display compositor content to Inkplate
-        displayManager->renderWithCompositor();
+        // Display compositor content to Inkplate with error handling
+        if (compositorRenderingSuccessful) {
+            if (!displayManager->renderWithCompositor()) {
+                Serial.println("Compositor display failed, falling back to direct rendering");
+                compositor->setFallbackMode(true);
+                renderAllRegions(); // Retry with direct rendering
+                return;
+            }
+        } else {
+            Serial.println("Compositor rendering had errors, attempting recovery");
+            if (compositor->recoverFromError()) {
+                Serial.println("Compositor recovery successful");
+            } else {
+                Serial.println("Compositor recovery failed, enabling fallback mode");
+                compositor->setFallbackMode(true);
+                renderAllRegions(); // Retry with direct rendering
+                return;
+            }
+        }
     } else {
-        Serial.println("Using direct rendering for all regions (compositor not available)");
+        if (compositor && compositor->isInFallbackMode()) {
+            Serial.println("Using direct rendering (compositor in fallback mode)");
+        } else {
+            Serial.println("Using direct rendering (compositor not available)");
+        }
 
-        // Fall back to direct rendering
+        // Fall back to direct rendering with error isolation
+        bool directRenderingSuccessful = true;
+
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region) {
@@ -496,23 +543,44 @@ void LayoutManager::renderAllRegions() {
                 if (region->needsUpdate()) {
                     Serial.printf("  Region needs update - rendering\n");
 
-                    // Let the region render all its widgets
-                    region->render();
-                    Serial.printf("  Region rendering complete\n");
+                    try {
+                        // Let the region render all its widgets with error isolation
+                        region->render();
+                        Serial.printf("  Region rendering complete\n");
+                    } catch (...) {
+                        Serial.printf("  ERROR: Region rendering failed for region (%d,%d)\n",
+                                     region->getX(), region->getY());
+                        directRenderingSuccessful = false;
+                        // Continue with other regions
+                    }
                 } else {
                     Serial.printf("  Region does not need update - skipping\n");
                 }
             }
         }
 
-        // Render global layout elements (borders, separators) after all regions
+        // Render global layout elements (borders, separators) after all regions with error handling
         if (layoutWidget) {
-            LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
-            layoutWidget->render(fullDisplayRegion);
+            try {
+                LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
+                layoutWidget->render(fullDisplayRegion);
+            } catch (...) {
+                Serial.println("ERROR: Layout widget rendering failed in direct mode");
+                directRenderingSuccessful = false;
+            }
         }
 
-        // Single display update for the entire layout
-        displayManager->update();
+        // Single display update for the entire layout with error handling
+        try {
+            displayManager->update();
+            if (directRenderingSuccessful) {
+                Serial.println("Direct rendering completed successfully");
+            } else {
+                Serial.println("Direct rendering completed with some errors");
+            }
+        } catch (...) {
+            Serial.println("ERROR: Display update failed in direct rendering mode");
+        }
     }
 
     Serial.println("Region rendering complete");
@@ -522,12 +590,13 @@ void LayoutManager::renderChangedRegions() {
     Serial.println("Rendering changed regions...");
 
     // Use compositor if available for efficient partial updates
-    if (compositor && compositor->isInitialized() && displayManager->getCompositor()) {
+    if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
         Serial.println("Using compositor for partial region rendering");
 
         bool hasChanges = false;
+        bool compositorRenderingSuccessful = true;
 
-        // Check which regions need updates and render them to compositor
+        // Check which regions need updates and render them to compositor with error handling
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region && region->needsUpdate()) {
@@ -536,20 +605,37 @@ void LayoutManager::renderChangedRegions() {
                              region->getWidth(), region->getHeight(),
                              region->getWidgetCount());
 
-                // Clear region on compositor
-                compositor->clearRegion(*region);
+                // Clear region on compositor with error checking
+                if (!compositor->clearRegion(*region)) {
+                    Serial.printf("Failed to clear changed region on compositor, error: %s\n",
+                                 compositor->getErrorString(compositor->getLastError()));
+                    compositorRenderingSuccessful = false;
+                    continue;
+                }
 
-                // Render all widgets in the region to compositor
+                // Render all widgets in the region to compositor with error isolation
                 for (size_t i = 0; i < region->getWidgetCount(); ++i) {
                     Widget* widget = region->getWidget(i);
                     if (widget) {
-                        widget->renderToCompositor(*compositor, *region);
+                        try {
+                            widget->renderToCompositor(*compositor, *region);
+                        } catch (...) {
+                            Serial.printf("Widget rendering failed for widget %zu in changed region (%d,%d)\n",
+                                         i, region->getX(), region->getY());
+                            // Continue with other widgets
+                        }
                     }
                 }
 
-                // Handle legacy widget if present
+                // Handle legacy widget if present with error isolation
                 if (region->getLegacyWidget()) {
-                    region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                    try {
+                        region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                    } catch (...) {
+                        Serial.printf("Legacy widget rendering failed in changed region (%d,%d)\n",
+                                     region->getX(), region->getY());
+                        // Continue with other regions
+                    }
                 }
 
                 // Mark region as clean after rendering
@@ -558,10 +644,27 @@ void LayoutManager::renderChangedRegions() {
             }
         }
 
-        // Only update display if there were actual changes
-        if (hasChanges) {
+        // Only update display if there were actual changes and no critical errors
+        if (hasChanges && compositorRenderingSuccessful) {
             Serial.println("Changes detected, performing partial display update");
-            displayManager->partialRenderWithCompositor();
+            if (!displayManager->partialRenderWithCompositor()) {
+                Serial.println("Partial compositor display failed, falling back to full direct rendering");
+                compositor->setFallbackMode(true);
+                renderAllRegions(); // Fall back to full direct rendering
+                return;
+            }
+        } else if (hasChanges && !compositorRenderingSuccessful) {
+            Serial.println("Compositor rendering had errors during partial update, attempting recovery");
+            if (compositor->recoverFromError()) {
+                Serial.println("Compositor recovery successful, retrying partial update");
+                renderChangedRegions(); // Retry
+                return;
+            } else {
+                Serial.println("Compositor recovery failed, falling back to direct rendering");
+                compositor->setFallbackMode(true);
+                renderAllRegions(); // Fall back to full direct rendering
+                return;
+            }
         } else {
             Serial.println("No changes detected, skipping display update");
         }

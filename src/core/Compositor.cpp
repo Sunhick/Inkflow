@@ -9,9 +9,30 @@ Compositor::Compositor(int width, int height)
     , surfaceHeight(height)
     , bytesPerPixel(1)  // 8-bit grayscale
     , surfaceSize(0)
-    , hasChanges(false) {
+    , hasChanges(false)
+    , lastError(CompositorError::None)
+    , fallbackMode(false)
+    , memoryPressureThreshold(1024 * 1024)  // 1MB default threshold
+    , maxRetryAttempts(3) {
+
+    // Validate dimensions
+    if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
+        setError(CompositorError::InvalidDimensions);
+        Serial.printf("Compositor: Invalid dimensions %dx%d\n", width, height);
+        return;
+    }
 
     surfaceSize = static_cast<size_t>(surfaceWidth) * surfaceHeight * bytesPerPixel;
+
+    // Check for potential overflow
+    if (surfaceSize / bytesPerPixel / surfaceHeight != static_cast<size_t>(surfaceWidth)) {
+        setError(CompositorError::InvalidDimensions);
+        Serial.println("Compositor: Surface size calculation overflow");
+        return;
+    }
+
+    Serial.printf("Compositor: Created with dimensions %dx%d, surface size: %zu bytes\n",
+                 width, height, surfaceSize);
 }
 
 Compositor::~Compositor() {
@@ -19,20 +40,41 @@ Compositor::~Compositor() {
 }
 
 bool Compositor::initialize() {
+    // Clear any previous errors
+    clearError();
+
+    // Check if already in error state from constructor
+    if (lastError != CompositorError::None) {
+        logError("initialize", lastError);
+        return false;
+    }
+
     // Clean up any existing allocation
     cleanup();
+
+    // Check memory pressure before allocation
+    if (checkMemoryPressure()) {
+        setError(CompositorError::MemoryAllocationFailed);
+        logError("initialize", lastError);
+        return false;
+    }
 
     // Allocate virtual surface buffer
     virtualSurface = new(std::nothrow) uint8_t[surfaceSize];
     if (!virtualSurface) {
+        setError(CompositorError::MemoryAllocationFailed);
+        logError("initialize", lastError);
         return false;
     }
 
     // Allocate dirty regions tracking (one bool per pixel for simplicity)
-    dirtyRegions = new(std::nothrow) bool[surfaceWidth * surfaceHeight];
+    size_t dirtySize = static_cast<size_t>(surfaceWidth) * surfaceHeight;
+    dirtyRegions = new(std::nothrow) bool[dirtySize];
     if (!dirtyRegions) {
         delete[] virtualSurface;
         virtualSurface = nullptr;
+        setError(CompositorError::MemoryAllocationFailed);
+        logError("initialize", lastError);
         return false;
     }
 
@@ -40,7 +82,31 @@ bool Compositor::initialize() {
     clear();
     resetChangeTracking();
 
+    Serial.printf("Compositor: Successfully initialized %dx%d surface (%zu bytes)\n",
+                 surfaceWidth, surfaceHeight, surfaceSize);
     return true;
+}
+
+bool Compositor::initializeWithRetry(int maxAttempts) {
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        Serial.printf("Compositor: Initialization attempt %d/%d\n", attempt, maxAttempts);
+
+        if (initialize()) {
+            Serial.printf("Compositor: Successfully initialized on attempt %d\n", attempt);
+            return true;
+        }
+
+        // Wait before retry (exponential backoff)
+        if (attempt < maxAttempts) {
+            int delayMs = 100 * (1 << (attempt - 1)); // 100ms, 200ms, 400ms, etc.
+            Serial.printf("Compositor: Initialization failed, retrying in %dms\n", delayMs);
+            delay(delayMs);
+        }
+    }
+
+    Serial.printf("Compositor: Failed to initialize after %d attempts\n", maxAttempts);
+    setFallbackMode(true);
+    return false;
 }
 
 void Compositor::cleanup() {
@@ -69,23 +135,46 @@ void Compositor::clear() {
     markRegionChanged(fullSurface);
 }
 
-void Compositor::clearRegion(const LayoutRegion& region) {
-    if (!virtualSurface) return;
+bool Compositor::clearRegion(const LayoutRegion& region) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        logError("clearRegion", lastError);
+        return false;
+    }
+
+    // Validate and correct region if needed
+    if (!validateRegion(region)) {
+        LayoutRegion correctedRegion = correctInvalidRegion(region);
+        if (correctedRegion.getWidth() <= 0 || correctedRegion.getHeight() <= 0) {
+            setError(CompositorError::InvalidRegion);
+            logError("clearRegion", lastError);
+            return false;
+        }
+        Serial.printf("Compositor: Corrected invalid region (%d,%d,%d,%d) to (%d,%d,%d,%d)\n",
+                     region.getX(), region.getY(), region.getWidth(), region.getHeight(),
+                     correctedRegion.getX(), correctedRegion.getY(),
+                     correctedRegion.getWidth(), correctedRegion.getHeight());
+        return clearRegion(correctedRegion);
+    }
 
     // Clamp region to surface bounds
-    int startX = std::max(0, region.getX());
-    int startY = std::max(0, region.getY());
-    int endX = std::min(surfaceWidth, region.getX() + region.getWidth());
-    int endY = std::min(surfaceHeight, region.getY() + region.getHeight());
+    LayoutRegion clampedRegion = clampRegionToBounds(region);
+    int startX = clampedRegion.getX();
+    int startY = clampedRegion.getY();
+    int endX = clampedRegion.getX() + clampedRegion.getWidth();
+    int endY = clampedRegion.getY() + clampedRegion.getHeight();
 
     // Clear the region to white
     for (int y = startY; y < endY; y++) {
         for (int x = startX; x < endX; x++) {
-            setPixel(x, y, 255);  // White
+            if (!setPixel(x, y, 255)) {  // White
+                // Continue with other pixels even if one fails
+                Serial.printf("Compositor: Failed to clear pixel at (%d,%d)\n", x, y);
+            }
         }
     }
 
-    markRegionChanged(region);
+    return markRegionChanged(clampedRegion);
 }
 
 uint8_t* Compositor::getSurfaceBuffer() {
@@ -104,8 +193,16 @@ bool Compositor::isValidCoordinate(int x, int y) const {
     return x >= 0 && x < surfaceWidth && y >= 0 && y < surfaceHeight;
 }
 
-void Compositor::setPixel(int x, int y, uint8_t color) {
-    if (!virtualSurface || !isValidCoordinate(x, y)) return;
+bool Compositor::setPixel(int x, int y, uint8_t color) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        return false;
+    }
+
+    if (!isValidCoordinate(x, y)) {
+        // Don't set error for out-of-bounds pixels as this is common during clipping
+        return false;
+    }
 
     size_t index = getPixelIndex(x, y);
     virtualSurface[index] = color;
@@ -115,6 +212,8 @@ void Compositor::setPixel(int x, int y, uint8_t color) {
         dirtyRegions[index] = true;
         hasChanges = true;
     }
+
+    return true;
 }
 
 uint8_t Compositor::getPixel(int x, int y) const {
@@ -123,28 +222,50 @@ uint8_t Compositor::getPixel(int x, int y) const {
     return virtualSurface[getPixelIndex(x, y)];
 }
 
-void Compositor::drawRect(int x, int y, int w, int h, uint8_t color) {
-    if (!virtualSurface || w <= 0 || h <= 0) return;
+bool Compositor::drawRect(int x, int y, int w, int h, uint8_t color) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        logError("drawRect", lastError);
+        return false;
+    }
+
+    if (w <= 0 || h <= 0) {
+        setError(CompositorError::InvalidRegion);
+        return false;
+    }
+
+    bool success = true;
 
     // Draw top and bottom edges
     for (int i = 0; i < w; i++) {
-        setPixel(x + i, y, color);           // Top edge
-        setPixel(x + i, y + h - 1, color);  // Bottom edge
+        if (!setPixel(x + i, y, color)) success = false;           // Top edge
+        if (!setPixel(x + i, y + h - 1, color)) success = false;  // Bottom edge
     }
 
     // Draw left and right edges
     for (int i = 0; i < h; i++) {
-        setPixel(x, y + i, color);           // Left edge
-        setPixel(x + w - 1, y + i, color);  // Right edge
+        if (!setPixel(x, y + i, color)) success = false;           // Left edge
+        if (!setPixel(x + w - 1, y + i, color)) success = false;  // Right edge
     }
 
     // Mark region as changed
     LayoutRegion region(x, y, w, h);
     markRegionChanged(region);
+
+    return success;
 }
 
-void Compositor::fillRect(int x, int y, int w, int h, uint8_t color) {
-    if (!virtualSurface || w <= 0 || h <= 0) return;
+bool Compositor::fillRect(int x, int y, int w, int h, uint8_t color) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        logError("fillRect", lastError);
+        return false;
+    }
+
+    if (w <= 0 || h <= 0) {
+        setError(CompositorError::InvalidRegion);
+        return false;
+    }
 
     // Clamp to surface bounds
     int startX = std::max(0, x);
@@ -152,53 +273,76 @@ void Compositor::fillRect(int x, int y, int w, int h, uint8_t color) {
     int endX = std::min(surfaceWidth, x + w);
     int endY = std::min(surfaceHeight, y + h);
 
+    bool success = true;
+
     // Fill the rectangle
     for (int py = startY; py < endY; py++) {
         for (int px = startX; px < endX; px++) {
-            setPixel(px, py, color);
+            if (!setPixel(px, py, color)) {
+                success = false;
+                // Continue filling other pixels
+            }
         }
     }
 
     // Mark region as changed
     LayoutRegion region(x, y, w, h);
-    markRegionChanged(region);
-}
-
-void Compositor::markRegionChanged(const LayoutRegion& region) {
-    // Validate region bounds
-    if (region.getWidth() <= 0 || region.getHeight() <= 0) return;
-
-    // Clamp region to surface bounds
-    LayoutRegion clampedRegion(
-        std::max(0, region.getX()),
-        std::max(0, region.getY()),
-        std::min(region.getWidth(), surfaceWidth - std::max(0, region.getX())),
-        std::min(region.getHeight(), surfaceHeight - std::max(0, region.getY()))
-    );
-
-    // Skip if region is completely outside surface
-    if (clampedRegion.getWidth() <= 0 || clampedRegion.getHeight() <= 0) return;
-
-    // Add to changed areas list
-    changedAreas.push_back(clampedRegion);
-    hasChanges = true;
-
-    // Mark dirty regions if tracking is enabled
-    if (dirtyRegions) {
-        int startX = clampedRegion.getX();
-        int startY = clampedRegion.getY();
-        int endX = clampedRegion.getX() + clampedRegion.getWidth();
-        int endY = clampedRegion.getY() + clampedRegion.getHeight();
-
-        for (int y = startY; y < endY; y++) {
-            for (int x = startX; x < endX; x++) {
-                dirtyRegions[getPixelIndex(x, y)] = true;
-            }
-        }
+    if (!markRegionChanged(region)) {
+        success = false;
     }
 
-    // Merge overlapping regions to optimize partial updates
-    mergeOverlappingRegions();
+    return success;
+}
+
+bool Compositor::markRegionChanged(const LayoutRegion& region) {
+    // Validate region bounds
+    if (!validateRegion(region)) {
+        LayoutRegion correctedRegion = correctInvalidRegion(region);
+        if (correctedRegion.getWidth() <= 0 || correctedRegion.getHeight() <= 0) {
+            setError(CompositorError::InvalidRegion);
+            return false;
+        }
+        return markRegionChanged(correctedRegion);
+    }
+
+    // Clamp region to surface bounds
+    LayoutRegion clampedRegion = clampRegionToBounds(region);
+
+    // Skip if region is completely outside surface
+    if (clampedRegion.getWidth() <= 0 || clampedRegion.getHeight() <= 0) {
+        return true; // Not an error, just nothing to mark
+    }
+
+    try {
+        // Add to changed areas list
+        changedAreas.push_back(clampedRegion);
+        hasChanges = true;
+
+        // Mark dirty regions if tracking is enabled
+        if (dirtyRegions) {
+            int startX = clampedRegion.getX();
+            int startY = clampedRegion.getY();
+            int endX = clampedRegion.getX() + clampedRegion.getWidth();
+            int endY = clampedRegion.getY() + clampedRegion.getHeight();
+
+            for (int y = startY; y < endY; y++) {
+                for (int x = startX; x < endX; x++) {
+                    size_t index = getPixelIndex(x, y);
+                    if (index < static_cast<size_t>(surfaceWidth * surfaceHeight)) {
+                        dirtyRegions[index] = true;
+                    }
+                }
+            }
+        }
+
+        // Merge overlapping regions to optimize partial updates
+        mergeOverlappingRegions();
+        return true;
+    } catch (...) {
+        setError(CompositorError::MemoryAllocationFailed);
+        logError("markRegionChanged", lastError);
+        return false;
+    }
 }
 
 void Compositor::resetChangeTracking() {
@@ -218,93 +362,131 @@ std::vector<LayoutRegion> Compositor::getChangedRegions() const {
     return changedAreas;
 }
 
-void Compositor::displayToInkplate(Inkplate& display) {
-    if (!virtualSurface) return;
-
-    // Clear the display buffer
-    display.clearDisplay();
-
-    // Copy virtual surface to display buffer
-    // Note: This is a simplified implementation. In practice, you might need
-    // to convert between different color formats or handle display-specific requirements
-
-    for (int y = 0; y < surfaceHeight; y++) {
-        for (int x = 0; x < surfaceWidth; x++) {
-            uint8_t pixel = getPixel(x, y);
-
-            // Convert 8-bit grayscale to Inkplate's expected format
-            // Inkplate uses inverted values where 0 = black, 7 = white in 3-bit mode
-            uint8_t inkplateColor;
-            if (pixel >= 224) inkplateColor = 7;      // White
-            else if (pixel >= 192) inkplateColor = 6;
-            else if (pixel >= 160) inkplateColor = 5;
-            else if (pixel >= 128) inkplateColor = 4;
-            else if (pixel >= 96) inkplateColor = 3;
-            else if (pixel >= 64) inkplateColor = 2;
-            else if (pixel >= 32) inkplateColor = 1;
-            else inkplateColor = 0;                   // Black
-
-            display.drawPixel(x, y, inkplateColor);
-        }
+bool Compositor::displayToInkplate(Inkplate& display) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        logError("displayToInkplate", lastError);
+        return false;
     }
 
-    // Perform full display update
-    display.display();
+    try {
+        Serial.println("Compositor: Starting full display update");
 
-    // Reset change tracking after successful display
-    resetChangeTracking();
+        // Clear the display buffer
+        display.clearDisplay();
+
+        // Copy virtual surface to display buffer
+        // Note: This is a simplified implementation. In practice, you might need
+        // to convert between different color formats or handle display-specific requirements
+
+        for (int y = 0; y < surfaceHeight; y++) {
+            for (int x = 0; x < surfaceWidth; x++) {
+                uint8_t pixel = getPixel(x, y);
+
+                // Convert 8-bit grayscale to Inkplate's expected format
+                // Inkplate uses inverted values where 0 = black, 7 = white in 3-bit mode
+                uint8_t inkplateColor;
+                if (pixel >= 224) inkplateColor = 7;      // White
+                else if (pixel >= 192) inkplateColor = 6;
+                else if (pixel >= 160) inkplateColor = 5;
+                else if (pixel >= 128) inkplateColor = 4;
+                else if (pixel >= 96) inkplateColor = 3;
+                else if (pixel >= 64) inkplateColor = 2;
+                else if (pixel >= 32) inkplateColor = 1;
+                else inkplateColor = 0;                   // Black
+
+                display.drawPixel(x, y, inkplateColor);
+            }
+        }
+
+        // Perform full display update
+        display.display();
+
+        // Reset change tracking after successful display
+        resetChangeTracking();
+
+        Serial.println("Compositor: Full display update completed successfully");
+        return true;
+    } catch (...) {
+        setError(CompositorError::DisplayUpdateFailed);
+        logError("displayToInkplate", lastError);
+        return false;
+    }
 }
 
-void Compositor::partialDisplayToInkplate(Inkplate& display) {
-    if (!virtualSurface || !hasChanges) return;
-
-    Serial.println("Compositor: Performing partial display update...");
-
-    // Get changed regions
-    std::vector<LayoutRegion> regions = getChangedRegions();
-
-    if (regions.empty()) {
-        Serial.println("Compositor: No changed regions to update");
-        return;
+bool Compositor::partialDisplayToInkplate(Inkplate& display) {
+    if (!virtualSurface) {
+        setError(CompositorError::SurfaceNotInitialized);
+        logError("partialDisplayToInkplate", lastError);
+        return false;
     }
 
-    Serial.printf("Compositor: Updating %d changed regions\n", regions.size());
+    if (!hasChanges) {
+        Serial.println("Compositor: No changes to display");
+        return true; // Not an error, just nothing to do
+    }
 
-    // Update each changed region
-    for (const auto& region : regions) {
-        Serial.printf("Compositor: Updating region (%d,%d) %dx%d\n",
-                     region.getX(), region.getY(), region.getWidth(), region.getHeight());
+    try {
+        Serial.println("Compositor: Performing partial display update...");
 
-        // Copy pixels from virtual surface to display for this region
-        for (int y = region.getY(); y < region.getY() + region.getHeight(); y++) {
-            for (int x = region.getX(); x < region.getX() + region.getWidth(); x++) {
-                if (isValidCoordinate(x, y)) {
-                    uint8_t pixel = getPixel(x, y);
+        // Get changed regions
+        std::vector<LayoutRegion> regions = getChangedRegions();
 
-                    // Convert 8-bit grayscale to Inkplate's expected format
-                    uint8_t inkplateColor;
-                    if (pixel >= 224) inkplateColor = 7;      // White
-                    else if (pixel >= 192) inkplateColor = 6;
-                    else if (pixel >= 160) inkplateColor = 5;
-                    else if (pixel >= 128) inkplateColor = 4;
-                    else if (pixel >= 96) inkplateColor = 3;
-                    else if (pixel >= 64) inkplateColor = 2;
-                    else if (pixel >= 32) inkplateColor = 1;
-                    else inkplateColor = 0;                   // Black
+        if (regions.empty()) {
+            Serial.println("Compositor: No changed regions to update");
+            return true;
+        }
 
-                    display.drawPixel(x, y, inkplateColor);
+        Serial.printf("Compositor: Updating %d changed regions\n", regions.size());
+
+        // Update each changed region
+        for (const auto& region : regions) {
+            Serial.printf("Compositor: Updating region (%d,%d) %dx%d\n",
+                         region.getX(), region.getY(), region.getWidth(), region.getHeight());
+
+            // Validate region before processing
+            if (!validateRegion(region)) {
+                Serial.printf("Compositor: Skipping invalid region (%d,%d) %dx%d\n",
+                             region.getX(), region.getY(), region.getWidth(), region.getHeight());
+                continue;
+            }
+
+            // Copy pixels from virtual surface to display for this region
+            for (int y = region.getY(); y < region.getY() + region.getHeight(); y++) {
+                for (int x = region.getX(); x < region.getX() + region.getWidth(); x++) {
+                    if (isValidCoordinate(x, y)) {
+                        uint8_t pixel = getPixel(x, y);
+
+                        // Convert 8-bit grayscale to Inkplate's expected format
+                        uint8_t inkplateColor;
+                        if (pixel >= 224) inkplateColor = 7;      // White
+                        else if (pixel >= 192) inkplateColor = 6;
+                        else if (pixel >= 160) inkplateColor = 5;
+                        else if (pixel >= 128) inkplateColor = 4;
+                        else if (pixel >= 96) inkplateColor = 3;
+                        else if (pixel >= 64) inkplateColor = 2;
+                        else if (pixel >= 32) inkplateColor = 1;
+                        else inkplateColor = 0;                   // Black
+
+                        display.drawPixel(x, y, inkplateColor);
+                    }
                 }
             }
         }
+
+        // Perform partial display update
+        display.partialUpdate();
+
+        // Reset change tracking after successful partial display
+        resetChangeTracking();
+
+        Serial.println("Compositor: Partial display update completed successfully");
+        return true;
+    } catch (...) {
+        setError(CompositorError::DisplayUpdateFailed);
+        logError("partialDisplayToInkplate", lastError);
+        return false;
     }
-
-    // Perform partial display update
-    display.partialUpdate();
-
-    // Reset change tracking after successful partial display
-    resetChangeTracking();
-
-    Serial.println("Compositor: Partial display update complete");
 }
 
 size_t Compositor::getMemoryUsage() const {
@@ -363,4 +545,119 @@ LayoutRegion Compositor::mergeRegions(const LayoutRegion& a, const LayoutRegion&
     int bottom = std::max(a.getY() + a.getHeight(), b.getY() + b.getHeight());
 
     return LayoutRegion(left, top, right - left, bottom - top);
+}
+
+// Error handling helper methods
+void Compositor::setError(CompositorError error) {
+    lastError = error;
+    if (error != CompositorError::None) {
+        Serial.printf("Compositor: Error set - %s\n", getErrorString(error));
+    }
+}
+
+void Compositor::logError(const char* operation, CompositorError error) const {
+    Serial.printf("Compositor: %s failed - %s\n", operation, getErrorString(error));
+}
+
+const char* Compositor::getErrorString(CompositorError error) const {
+    switch (error) {
+        case CompositorError::None:
+            return "No error";
+        case CompositorError::MemoryAllocationFailed:
+            return "Memory allocation failed";
+        case CompositorError::InvalidDimensions:
+            return "Invalid dimensions";
+        case CompositorError::SurfaceNotInitialized:
+            return "Surface not initialized";
+        case CompositorError::InvalidRegion:
+            return "Invalid region";
+        case CompositorError::DisplayUpdateFailed:
+            return "Display update failed";
+        case CompositorError::WidgetRenderingFailed:
+            return "Widget rendering failed";
+        default:
+            return "Unknown error";
+    }
+}
+
+bool Compositor::validateRegion(const LayoutRegion& region) const {
+    return region.getWidth() > 0 && region.getHeight() > 0 &&
+           region.getX() >= -surfaceWidth && region.getY() >= -surfaceHeight &&
+           region.getX() < surfaceWidth * 2 && region.getY() < surfaceHeight * 2;
+}
+
+LayoutRegion Compositor::clampRegionToBounds(const LayoutRegion& region) const {
+    int x = std::max(0, region.getX());
+    int y = std::max(0, region.getY());
+    int maxWidth = surfaceWidth - x;
+    int maxHeight = surfaceHeight - y;
+    int width = std::min(region.getWidth(), maxWidth);
+    int height = std::min(region.getHeight(), maxHeight);
+
+    // Ensure non-negative dimensions
+    width = std::max(0, width);
+    height = std::max(0, height);
+
+    return LayoutRegion(x, y, width, height);
+}
+
+bool Compositor::checkMemoryPressure() const {
+    // Simple memory pressure check - in a real implementation,
+    // you might check available heap memory
+    size_t requiredMemory = surfaceSize + (surfaceWidth * surfaceHeight * sizeof(bool));
+    return requiredMemory > memoryPressureThreshold;
+}
+
+bool Compositor::isValidRegion(const LayoutRegion& region) const {
+    return validateRegion(region);
+}
+
+LayoutRegion Compositor::correctInvalidRegion(const LayoutRegion& region) const {
+    // Correct negative dimensions
+    int width = std::max(0, region.getWidth());
+    int height = std::max(0, region.getHeight());
+
+    // Clamp coordinates to reasonable bounds
+    int x = std::max(-surfaceWidth, std::min(surfaceWidth * 2, region.getX()));
+    int y = std::max(-surfaceHeight, std::min(surfaceHeight * 2, region.getY()));
+
+    return LayoutRegion(x, y, width, height);
+}
+
+bool Compositor::recoverFromError() {
+    Serial.println("Compositor: Attempting error recovery");
+
+    CompositorError originalError = lastError;
+    clearError();
+
+    switch (originalError) {
+        case CompositorError::MemoryAllocationFailed:
+            // Try to reinitialize with retry
+            cleanup();
+            if (initializeWithRetry(2)) {
+                Serial.println("Compositor: Recovered from memory allocation failure");
+                setFallbackMode(false);
+                return true;
+            }
+            setFallbackMode(true);
+            return false;
+
+        case CompositorError::SurfaceNotInitialized:
+            // Try to initialize
+            if (initialize()) {
+                Serial.println("Compositor: Recovered from uninitialized surface");
+                return true;
+            }
+            return false;
+
+        case CompositorError::DisplayUpdateFailed:
+            // Clear error and try again next time
+            Serial.println("Compositor: Cleared display update error");
+            return true;
+
+        default:
+            // For other errors, just clear and continue
+            Serial.printf("Compositor: Cleared error: %s\n", getErrorString(originalError));
+            return true;
+    }
 }

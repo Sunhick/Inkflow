@@ -147,65 +147,201 @@ Compositor* DisplayManager::getCompositor() const {
     return compositor;
 }
 
-void DisplayManager::renderWithCompositor() {
+bool DisplayManager::renderWithCompositor() {
     if (!compositor) {
         Serial.println("DisplayManager: No compositor available, falling back to direct rendering");
-        update(); // Fallback to direct rendering
-        return;
+        try {
+            update(); // Fallback to direct rendering
+            return true;
+        } catch (...) {
+            Serial.println("DisplayManager: Direct rendering fallback failed");
+            return false;
+        }
     }
 
     if (!compositor->isInitialized()) {
         Serial.println("DisplayManager: Compositor not initialized, falling back to direct rendering");
-        update(); // Fallback to direct rendering
-        return;
+        try {
+            update(); // Fallback to direct rendering
+            return true;
+        } catch (...) {
+            Serial.println("DisplayManager: Direct rendering fallback failed");
+            return false;
+        }
+    }
+
+    // Check for compositor errors before rendering
+    if (compositor->getLastError() != CompositorError::None) {
+        Serial.printf("DisplayManager: Compositor has error (%s), attempting recovery\n",
+                     compositor->getErrorString(compositor->getLastError()));
+        if (!compositor->recoverFromError()) {
+            Serial.println("DisplayManager: Compositor recovery failed, falling back to direct rendering");
+            try {
+                update();
+                return true;
+            } catch (...) {
+                Serial.println("DisplayManager: Direct rendering fallback failed");
+                return false;
+            }
+        }
     }
 
     Serial.println("DisplayManager: Performing full render with compositor...");
 
-    // Use compositor to render to display
-    compositor->displayToInkplate(display);
+    try {
+        // Use compositor to render to display
+        if (!compositor->displayToInkplate(display)) {
+            Serial.printf("DisplayManager: Compositor display failed - %s\n",
+                         compositor->getErrorString(compositor->getLastError()));
 
-    Serial.println("DisplayManager: Compositor full render complete");
+            // Attempt recovery
+            if (compositor->recoverFromError()) {
+                Serial.println("DisplayManager: Compositor recovered, retrying display");
+                if (compositor->displayToInkplate(display)) {
+                    Serial.println("DisplayManager: Compositor full render complete after recovery");
+                    return true;
+                }
+            }
+
+            // Final fallback to direct rendering
+            Serial.println("DisplayManager: Falling back to direct rendering after compositor failure");
+            update();
+            return true; // Consider fallback as success
+        }
+
+        Serial.println("DisplayManager: Compositor full render complete");
+        return true;
+    } catch (...) {
+        Serial.println("DisplayManager: Exception during compositor rendering, falling back to direct rendering");
+        try {
+            update();
+            return true;
+        } catch (...) {
+            Serial.println("DisplayManager: All rendering methods failed");
+            return false;
+        }
+    }
 }
 
-void DisplayManager::partialRenderWithCompositor() {
+bool DisplayManager::partialRenderWithCompositor() {
     if (!compositor) {
         Serial.println("DisplayManager: No compositor available for partial render, falling back to smart partial update");
-        smartPartialUpdate(); // Fallback to existing partial update
-        return;
+        try {
+            smartPartialUpdate(); // Fallback to existing partial update
+            return true;
+        } catch (...) {
+            Serial.println("DisplayManager: Smart partial update fallback failed");
+            return false;
+        }
     }
 
     if (!compositor->isInitialized()) {
         Serial.println("DisplayManager: Compositor not initialized for partial render, falling back to smart partial update");
-        smartPartialUpdate(); // Fallback to existing partial update
-        return;
+        try {
+            smartPartialUpdate(); // Fallback to existing partial update
+            return true;
+        } catch (...) {
+            Serial.println("DisplayManager: Smart partial update fallback failed");
+            return false;
+        }
     }
 
     // Check if there are any changes to render
     if (!compositor->hasChangedRegions()) {
         Serial.println("DisplayManager: No changes detected in compositor, skipping partial render");
-        return;
+        return true; // No changes is not an error
+    }
+
+    // Check for compositor errors before rendering
+    if (compositor->getLastError() != CompositorError::None) {
+        Serial.printf("DisplayManager: Compositor has error (%s) during partial render, attempting recovery\n",
+                     compositor->getErrorString(compositor->getLastError()));
+        if (!compositor->recoverFromError()) {
+            Serial.println("DisplayManager: Compositor recovery failed, falling back to smart partial update");
+            try {
+                smartPartialUpdate();
+                return true;
+            } catch (...) {
+                Serial.println("DisplayManager: Smart partial update fallback failed");
+                return false;
+            }
+        }
     }
 
     Serial.println("DisplayManager: Performing partial render with compositor...");
 
     // Store current display mode
     int currentMode = display.getDisplayMode();
+    bool modeChanged = false;
 
-    // Switch to 1-bit mode for partial updates (required for Inkplate partial updates)
-    if (currentMode != INKPLATE_1BIT) {
-        Serial.println("DisplayManager: Switching to 1-bit mode for compositor partial update");
-        display.setDisplayMode(INKPLATE_1BIT);
+    try {
+        // Switch to 1-bit mode for partial updates (required for Inkplate partial updates)
+        if (currentMode != INKPLATE_1BIT) {
+            Serial.println("DisplayManager: Switching to 1-bit mode for compositor partial update");
+            display.setDisplayMode(INKPLATE_1BIT);
+            modeChanged = true;
+        }
+
+        // Use compositor for partial rendering
+        if (!compositor->partialDisplayToInkplate(display)) {
+            Serial.printf("DisplayManager: Compositor partial display failed - %s\n",
+                         compositor->getErrorString(compositor->getLastError()));
+
+            // Restore display mode before attempting recovery
+            if (modeChanged) {
+                display.setDisplayMode(currentMode);
+                modeChanged = false;
+            }
+
+            // Attempt recovery
+            if (compositor->recoverFromError()) {
+                Serial.println("DisplayManager: Compositor recovered, retrying partial display");
+                if (currentMode != INKPLATE_1BIT) {
+                    display.setDisplayMode(INKPLATE_1BIT);
+                    modeChanged = true;
+                }
+
+                if (compositor->partialDisplayToInkplate(display)) {
+                    // Restore original display mode
+                    if (modeChanged) {
+                        display.setDisplayMode(currentMode);
+                    }
+                    Serial.println("DisplayManager: Compositor partial render complete after recovery");
+                    return true;
+                }
+            }
+
+            // Final fallback to smart partial update
+            Serial.println("DisplayManager: Falling back to smart partial update after compositor failure");
+            smartPartialUpdate();
+            return true; // Consider fallback as success
+        }
+
+        // Restore original display mode
+        if (modeChanged) {
+            Serial.println("DisplayManager: Restoring display mode after compositor partial update");
+            display.setDisplayMode(currentMode);
+        }
+
+        Serial.println("DisplayManager: Compositor partial render complete");
+        return true;
+    } catch (...) {
+        // Ensure display mode is restored even if an exception occurs
+        if (modeChanged) {
+            try {
+                display.setDisplayMode(currentMode);
+            } catch (...) {
+                Serial.println("DisplayManager: Failed to restore display mode after exception");
+            }
+        }
+
+        Serial.println("DisplayManager: Exception during compositor partial rendering, falling back to smart partial update");
+        try {
+            smartPartialUpdate();
+            return true;
+        } catch (...) {
+            Serial.println("DisplayManager: All partial rendering methods failed");
+            return false;
+        }
     }
-
-    // Use compositor for partial rendering
-    compositor->partialDisplayToInkplate(display);
-
-    // Restore original display mode
-    if (currentMode != INKPLATE_1BIT) {
-        Serial.println("DisplayManager: Restoring display mode after compositor partial update");
-        display.setDisplayMode(currentMode);
-    }
-
-    Serial.println("DisplayManager: Compositor partial render complete");
 }
