@@ -1,4 +1,6 @@
 #include "WeatherWidget.h"
+#include "../../core/Compositor.h"
+#include "../../managers/ConfigManager.h"
 
 const char* WeatherWidget::WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
 
@@ -35,6 +37,25 @@ void WeatherWidget::render(const LayoutRegion& region) {
 
     // Draw weather content within the region
     drawWeatherDisplay(region);
+
+    lastWeatherUpdate = millis();
+}
+
+void WeatherWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    Serial.printf("Rendering weather widget to compositor in region: %dx%d at (%d,%d)\n",
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+
+    // Clear the widget region on compositor
+    clearRegionOnCompositor(compositor, region);
+
+    // Fetch weather data if not valid
+    if (!currentWeather.isValid) {
+        Serial.println("Weather data not valid, attempting fetch...");
+        fetchWeatherData();
+    }
+
+    // Draw weather content to compositor within the region
+    drawWeatherDisplayToCompositor(compositor, region);
 
     lastWeatherUpdate = millis();
 }
@@ -211,4 +232,43 @@ const char* WeatherWidget::getWeatherDescription(int weatherCode) {
 
 bool WeatherWidget::isWeatherDataValid() const {
     return currentWeather.isValid;
+}
+
+void WeatherWidget::drawWeatherDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    int margin = 10;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
+
+    // Draw "WEATHER" title area (simplified as filled rectangle)
+    compositor.fillRect(labelX, labelY, 80, 20, 0); // Black rectangle for "WEATHER"
+
+    // Draw city name area
+    int cityWidth = weatherCity.length() * 18; // Approximate width for size 3
+    compositor.fillRect(labelX, labelY + 25, cityWidth, 25, 0); // Black rectangle for city
+
+    if (!currentWeather.isValid) {
+        // Draw "No Data" area
+        compositor.fillRect(labelX, labelY + 55, 80, 20, 0); // Black rectangle for "No Data"
+
+        // Draw "Check WiFi" area
+        compositor.fillRect(labelX, labelY + 85, 100, 15, 0); // Black rectangle for "Check WiFi"
+        return;
+    }
+
+    // Draw temperature area (large)
+    String tempStr = String((int)currentWeather.temperature) + "F";
+    int tempWidth = tempStr.length() * 24; // Approximate width for size 4
+    compositor.fillRect(labelX, labelY + 55, tempWidth, 35, 0); // Black rectangle for temperature
+
+    // Draw weather description area
+    int descWidth = currentWeather.description.length() * 12; // Approximate width for size 2
+    compositor.fillRect(labelX, labelY + 105, descWidth, 20, 0); // Black rectangle for description
+
+    // Draw precipitation probability area
+    String precipStr = "Rain: " + String(currentWeather.precipitationProbability) + "%";
+    int precipWidth = precipStr.length() * 12; // Approximate width for size 2
+    compositor.fillRect(labelX, labelY + 135, precipWidth, 20, 0); // Black rectangle for precipitation
+}
+WidgetType WeatherWidget::getWidgetType() const {
+    return WidgetTypeTraits<WeatherWidget>::type();
 }

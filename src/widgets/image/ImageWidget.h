@@ -5,21 +5,30 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
+// Forward declaration
+class Compositor;
+
 class ImageWidget : public Widget {
 public:
     ImageWidget(Inkplate& display, const char* imageUrl);
 
     // Widget interface implementation
     void render(const LayoutRegion& region) override;
+    void renderToCompositor(Compositor& compositor, const LayoutRegion& region) override;
     bool shouldUpdate() override;
     void begin() override;
+    WidgetType getWidgetType() const override;
 
     // Image-specific methods
     bool fetchAndDisplay(const LayoutRegion& region);
+    bool fetchAndDisplayToCompositor(Compositor& compositor, const LayoutRegion& region);
     void showErrorInRegion(const LayoutRegion& region, const char* title, const char* message, const char* details = nullptr);
+    void showErrorInRegionToCompositor(Compositor& compositor, const LayoutRegion& region, const char* title, const char* message, const char* details = nullptr);
 
     void showImagePlaceholder(const LayoutRegion& region, const char* title, const char* subtitle = nullptr);
+    void showImagePlaceholderToCompositor(Compositor& compositor, const LayoutRegion& region, const char* title, const char* subtitle = nullptr);
     void showDiagnosticsInRegion(const LayoutRegion& region, const char* ipAddress, int signalStrength);
+    void showDiagnosticsInRegionToCompositor(Compositor& compositor, const LayoutRegion& region, const char* ipAddress, int signalStrength);
     int getConsecutiveFailures() const { return consecutiveFailures; }
 
 private:

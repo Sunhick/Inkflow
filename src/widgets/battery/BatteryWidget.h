@@ -16,6 +16,7 @@ public:
     void renderToCompositor(Compositor& compositor, const LayoutRegion& region) override;
     bool shouldUpdate() override;
     void begin() override;
+    WidgetType getWidgetType() const override;
 
     // Battery-specific methods
     void forceUpdate();

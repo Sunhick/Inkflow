@@ -7,6 +7,9 @@
 // Forward declaration to avoid circular dependency
 class Compositor;
 
+// Forward declaration for WidgetType
+enum class WidgetType;
+
 class Widget {
 public:
     Widget(Inkplate& display) : display(display) {}
@@ -16,6 +19,9 @@ public:
     virtual void render(const LayoutRegion& region) = 0;
     virtual bool shouldUpdate() = 0;
     virtual void begin() = 0;
+
+    // Widget type identification (must be implemented by each widget)
+    virtual WidgetType getWidgetType() const = 0;
 
     // New compositor-based rendering method (default implementation for backward compatibility)
     virtual void renderToCompositor(Compositor& compositor, const LayoutRegion& region);

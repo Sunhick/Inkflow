@@ -19,7 +19,9 @@ public:
 
     void begin() override;
     void render(const LayoutRegion& region) override;
+    void renderToCompositor(Compositor& compositor, const LayoutRegion& region) override;
     bool shouldUpdate() override;
+    WidgetType getWidgetType() const override;
 
     // Configuration methods
     void setShowBorders(bool show) { showRegionBorders = show; }

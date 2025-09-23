@@ -21,6 +21,7 @@ public:
     void begin();
     void loop();
     void forceRefresh(); // Manual refresh triggered by button
+    void forceTimeAndBatteryUpdate(); // Force update of time and battery widgets using compositor partial rendering
 
     // Region collection management
     size_t addRegion(std::unique_ptr<LayoutRegion> region);

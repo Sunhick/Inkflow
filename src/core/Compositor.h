@@ -8,12 +8,7 @@
 #else
 #include <Inkplate.h>
 #endif
-#ifndef UNIT_TEST
 #include "LayoutRegion.h"
-#else
-// Forward declaration for unit tests - will be defined by test
-class LayoutRegion;
-#endif
 
 /**
  * Error codes for Compositor operations

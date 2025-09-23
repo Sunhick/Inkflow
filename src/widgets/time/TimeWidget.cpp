@@ -1,5 +1,6 @@
 #include "TimeWidget.h"
 #include "../../core/Compositor.h"
+#include "../../managers/ConfigManager.h"
 
 const char* TimeWidget::NTP_SERVER = "pool.ntp.org";
 
@@ -260,4 +261,7 @@ void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const Layou
     // Note: This is a simplified implementation. For proper text rendering to compositor,
     // you would need to implement a text rendering system that draws to the compositor
     // surface pixel by pixel, or use a graphics library that can render to a buffer.
+}
+WidgetType TimeWidget::getWidgetType() const {
+    return WidgetTypeTraits<TimeWidget>::type();
 }

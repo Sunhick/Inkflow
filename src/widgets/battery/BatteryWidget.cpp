@@ -1,5 +1,6 @@
 #include "BatteryWidget.h"
 #include "../../core/Compositor.h"
+#include "../../managers/ConfigManager.h"
 
 BatteryWidget::BatteryWidget(Inkplate& display)
     : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(DEFAULT_BATTERY_UPDATE_INTERVAL) {}
@@ -184,4 +185,7 @@ void BatteryWidget::drawBatteryIconToCompositor(Compositor& compositor, int x, i
     if (fillWidth > 0) {
         compositor.fillRect(x + 2, y + 2, fillWidth, iconHeight - 4, 0);
     }
+}
+WidgetType BatteryWidget::getWidgetType() const {
+    return WidgetTypeTraits<BatteryWidget>::type();
 }

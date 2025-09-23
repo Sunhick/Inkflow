@@ -738,6 +738,73 @@ void LayoutManager::forceRefresh() {
     }
 }
 
+void LayoutManager::forceTimeAndBatteryUpdate() {
+    Serial.println("Forcing time and battery widget updates with compositor partial rendering");
+
+    bool hasTimeOrBatteryUpdates = false;
+
+    // Find and mark only time and battery widget regions as dirty
+    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+        LayoutRegion* region = it->get();
+        if (region) {
+            bool regionHasTimeOrBattery = false;
+
+            // Check if region contains time or battery widgets
+            for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                Widget* widget = region->getWidget(i);
+                if (widget) {
+                    // Check widget type using getWidgetType method
+                    WidgetType widgetType = widget->getWidgetType();
+
+                    if (widgetType == WidgetType::DATE_TIME || widgetType == WidgetType::BATTERY) {
+                        regionHasTimeOrBattery = true;
+                        hasTimeOrBatteryUpdates = true;
+                        Serial.printf("Found %s widget in region (%d,%d)\n",
+                                     widgetType == WidgetType::DATE_TIME ? "time" : "battery",
+                                     region->getX(), region->getY());
+                        break;
+                    }
+                }
+            }
+
+            // Also check legacy widget
+            if (!regionHasTimeOrBattery && region->getLegacyWidget()) {
+                WidgetType widgetType = region->getLegacyWidget()->getWidgetType();
+
+                if (widgetType == WidgetType::DATE_TIME || widgetType == WidgetType::BATTERY) {
+                    regionHasTimeOrBattery = true;
+                    hasTimeOrBatteryUpdates = true;
+                    Serial.printf("Found legacy %s widget in region (%d,%d)\n",
+                                 widgetType == WidgetType::DATE_TIME ? "time" : "battery",
+                                 region->getX(), region->getY());
+                }
+            }
+
+            // Mark region as dirty if it contains time or battery widgets
+            if (regionHasTimeOrBattery) {
+                region->markDirty();
+                Serial.printf("Marked region (%d,%d) as dirty for time/battery update\n",
+                             region->getX(), region->getY());
+            }
+        }
+    }
+
+    if (hasTimeOrBatteryUpdates) {
+        Serial.println("Time/battery widgets found - performing partial compositor update");
+
+        // Use compositor partial rendering for efficient updates
+        if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
+            Serial.println("Using compositor for partial time/battery update");
+            renderChangedRegions(); // This will use compositor partial rendering
+        } else {
+            Serial.println("Compositor not available - using direct partial rendering for time/battery update");
+            renderChangedRegions(); // This will fall back to direct rendering
+        }
+    } else {
+        Serial.println("No time or battery widgets found - skipping update");
+    }
+}
+
 
 
 unsigned long LayoutManager::getShortestUpdateInterval() const {

@@ -1,4 +1,6 @@
 #include "NameWidget.h"
+#include "../../core/Compositor.h"
+#include "../../managers/ConfigManager.h"
 
 NameWidget::NameWidget(Inkplate& display)
     : Widget(display), familyName("Family"), hasRendered(false) {}
@@ -27,6 +29,19 @@ void NameWidget::render(const LayoutRegion& region) {
 
     // Draw name content within the region
     drawNameDisplay(region);
+
+    hasRendered = true;
+}
+
+void NameWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    Serial.printf("Rendering name widget to compositor in region: %dx%d at (%d,%d)\n",
+                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+
+    // Clear the widget region on compositor
+    clearRegionOnCompositor(compositor, region);
+
+    // Draw name content to compositor within the region
+    drawNameDisplayToCompositor(compositor, region);
 
     hasRendered = true;
 }
@@ -176,4 +191,125 @@ void NameWidget::drawNameDisplay(const LayoutRegion& region) {
 
     Serial.printf("Drew fancy family name '%s' with %d lines, center-aligned with wrapping\n",
                   familyName.c_str(), lineCount);
+}
+
+void NameWidget::drawNameDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    // Draw decorative border around the name area first
+    int borderMargin = 12;
+    int borderX = region.getX() + borderMargin;
+    int borderY = region.getY() + borderMargin;
+    int borderWidth = region.getWidth() - (borderMargin * 2);
+    int borderHeight = region.getHeight() - (borderMargin * 2);
+
+    // Draw double border for elegant look
+    compositor.drawRect(borderX, borderY, borderWidth, borderHeight, 0);
+    compositor.drawRect(borderX + 2, borderY + 2, borderWidth - 4, borderHeight - 4, 0);
+
+    // Add decorative corner elements
+    int cornerSize = 8;
+    // Top-left corner
+    for (int i = 0; i < cornerSize; i++) {
+        compositor.setPixel(borderX + 6 + i, borderY + 6, 0);
+        compositor.setPixel(borderX + 6, borderY + 6 + i, 0);
+    }
+
+    // Top-right corner
+    for (int i = 0; i < cornerSize; i++) {
+        compositor.setPixel(borderX + borderWidth - 6 - i, borderY + 6, 0);
+        compositor.setPixel(borderX + borderWidth - 6, borderY + 6 + i, 0);
+    }
+
+    // Bottom-left corner
+    for (int i = 0; i < cornerSize; i++) {
+        compositor.setPixel(borderX + 6, borderY + borderHeight - 6 - i, 0);
+        compositor.setPixel(borderX + 6 + i, borderY + borderHeight - 6, 0);
+    }
+
+    // Bottom-right corner
+    for (int i = 0; i < cornerSize; i++) {
+        compositor.setPixel(borderX + borderWidth - 6 - i, borderY + borderHeight - 6, 0);
+        compositor.setPixel(borderX + borderWidth - 6, borderY + borderHeight - 6 - i, 0);
+    }
+
+    // Text rendering area (inside the border)
+    int textMargin = 20;
+    int textAreaX = borderX + textMargin;
+    int textAreaY = borderY + textMargin;
+    int textAreaWidth = borderWidth - (textMargin * 2);
+    int textAreaHeight = borderHeight - (textMargin * 2);
+
+    // For compositor rendering, we'll create simplified text representation
+    // Split familyName into words for wrapping
+    String words[20]; // Support up to 20 words
+    int wordCount = 0;
+
+    String tempName = familyName;
+    tempName.trim();
+
+    int lastSpace = -1;
+    for (int i = 0; i <= tempName.length(); i++) {
+        if (i == tempName.length() || tempName.charAt(i) == ' ') {
+            if (i > lastSpace + 1) {
+                words[wordCount] = tempName.substring(lastSpace + 1, i);
+                wordCount++;
+                if (wordCount >= 20) break; // Safety limit
+            }
+            lastSpace = i;
+        }
+    }
+
+    // Create lines by fitting words (simplified - assume each character is 24 pixels wide for size 4)
+    String lines[10]; // Support up to 10 lines
+    int lineCount = 0;
+    String currentLine = "";
+    int maxCharsPerLine = textAreaWidth / 24; // Approximate chars per line for size 4
+
+    for (int i = 0; i < wordCount; i++) {
+        String testLine = currentLine;
+        if (testLine.length() > 0) testLine += " ";
+        testLine += words[i];
+
+        if (testLine.length() <= maxCharsPerLine || currentLine.length() == 0) {
+            // Line fits, add the word
+            currentLine = testLine;
+        } else {
+            // Line too long, start new line
+            if (currentLine.length() > 0) {
+                lines[lineCount] = currentLine;
+                lineCount++;
+            }
+            currentLine = words[i];
+        }
+    }
+
+    // Add the last line
+    if (currentLine.length() > 0 && lineCount < 10) {
+        lines[lineCount] = currentLine;
+        lineCount++;
+    }
+
+    // Calculate total text height and starting Y position for vertical centering
+    int lineHeight = 35; // Height for size 4 text
+    int totalTextHeight = lineCount * lineHeight;
+    int startY = textAreaY + (textAreaHeight - totalTextHeight) / 2;
+
+    // Draw each line as a filled rectangle (simplified text representation)
+    for (int i = 0; i < lineCount; i++) {
+        int lineWidth = lines[i].length() * 24; // Approximate width for size 4
+        int lineX = textAreaX + (textAreaWidth - lineWidth) / 2;
+        int lineY = startY + (i * lineHeight);
+
+        // Draw the line as a filled rectangle with bold effect (thicker rectangle)
+        compositor.fillRect(lineX, lineY, lineWidth, 30, 0); // Main text rectangle
+        compositor.fillRect(lineX + 1, lineY + 1, lineWidth, 30, 0); // Bold effect
+
+        Serial.printf("Drew line %d to compositor: '%s' at (%d,%d) width=%d\n",
+                      i, lines[i].c_str(), lineX, lineY, lineWidth);
+    }
+
+    Serial.printf("Drew fancy family name '%s' to compositor with %d lines, center-aligned with wrapping\n",
+                  familyName.c_str(), lineCount);
+}
+WidgetType NameWidget::getWidgetType() const {
+    return WidgetTypeTraits<NameWidget>::type();
 }
