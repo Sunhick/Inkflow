@@ -1,4 +1,5 @@
 #include "NameWidget.h"
+#include "../../core/Logger.h"
 #include "../../core/Compositor.h"
 #include "../../managers/ConfigManager.h"
 
@@ -7,11 +8,11 @@ NameWidget::NameWidget(Inkplate& display)
 
 NameWidget::NameWidget(Inkplate& display, const String& name)
     : Widget(display), familyName(name), hasRendered(false) {
-    Serial.printf("NameWidget created with family name: %s\n", name.c_str());
+    LOG_INFO("NameWidget", "Created with family name: %s", name.c_str());
 }
 
 void NameWidget::begin() {
-    Serial.println("Initializing name widget...");
+    LOG_INFO("NameWidget", "Initializing name widget...");
     hasRendered = false;
 }
 
@@ -21,8 +22,8 @@ bool NameWidget::shouldUpdate() {
 }
 
 void NameWidget::render(const LayoutRegion& region) {
-    Serial.printf("Rendering name widget in region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("NameWidget", "Rendering in region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region
     clearRegion(region);
@@ -34,8 +35,8 @@ void NameWidget::render(const LayoutRegion& region) {
 }
 
 void NameWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    Serial.printf("Rendering name widget to compositor in region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("NameWidget", "Rendering to compositor in region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region on compositor
     clearRegionOnCompositor(compositor, region);
@@ -50,7 +51,7 @@ void NameWidget::setFamilyName(const String& name) {
     if (familyName != name) {
         familyName = name;
         hasRendered = false; // Force re-render when name changes
-        Serial.printf("Family name updated to: %s\n", name.c_str());
+        LOG_INFO("NameWidget", "Family name updated to: %s", name.c_str());
     }
 }
 
@@ -186,11 +187,11 @@ void NameWidget::drawNameDisplay(const LayoutRegion& region) {
         display.setCursor(lineX + 1, lineY + 1);
         display.print(lines[i]);
 
-        Serial.printf("Drew line %d: '%s' at (%d,%d)\n", i, lines[i].c_str(), lineX, lineY);
+        LOG_DEBUG("NameWidget", "Drew line %d: '%s' at (%d,%d)", i, lines[i].c_str(), lineX, lineY);
     }
 
-    Serial.printf("Drew fancy family name '%s' with %d lines, center-aligned with wrapping\n",
-                  familyName.c_str(), lineCount);
+    LOG_DEBUG("NameWidget", "Drew fancy family name '%s' with %d lines, center-aligned with wrapping",
+              familyName.c_str(), lineCount);
 }
 
 void NameWidget::drawNameDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
@@ -303,12 +304,12 @@ void NameWidget::drawNameDisplayToCompositor(Compositor& compositor, const Layou
         compositor.fillRect(lineX, lineY, lineWidth, 30, 0); // Main text rectangle
         compositor.fillRect(lineX + 1, lineY + 1, lineWidth, 30, 0); // Bold effect
 
-        Serial.printf("Drew line %d to compositor: '%s' at (%d,%d) width=%d\n",
-                      i, lines[i].c_str(), lineX, lineY, lineWidth);
+        LOG_DEBUG("NameWidget", "Drew line %d to compositor: '%s' at (%d,%d) width=%d",
+                  i, lines[i].c_str(), lineX, lineY, lineWidth);
     }
 
-    Serial.printf("Drew fancy family name '%s' to compositor with %d lines, center-aligned with wrapping\n",
-                  familyName.c_str(), lineCount);
+    LOG_DEBUG("NameWidget", "Drew fancy family name '%s' to compositor with %d lines, center-aligned with wrapping",
+              familyName.c_str(), lineCount);
 }
 WidgetType NameWidget::getWidgetType() const {
     return WidgetTypeTraits<NameWidget>::type();

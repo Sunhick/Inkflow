@@ -1,5 +1,6 @@
 #include "managers/LayoutManager.h"
 #include "managers/PowerManager.h"
+#include "core/Logger.h"
 
 LayoutManager layoutManager;
 
@@ -9,27 +10,30 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
 
-    Serial.println("=== INKPLATE IMAGE DISPLAY STARTING ===");
+    // Initialize logger
+    Logger::setLogLevel(LogLevel::INFO);
+
+    LOG_INFO("Main", "=== INKPLATE IMAGE DISPLAY STARTING ===");
 
     // Initialize WAKE button pins
     // pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
     // pinMode(34, INPUT_PULLUP);
     // pinMode(39, INPUT_PULLUP);
 
-    Serial.println("Button pins initialized: 36, 34, 39");
+    LOG_INFO("Main", "Button pins initialized: 36, 34, 39");
 
     layoutManager.begin();
 
     // Demonstrate compositor integration
-    Serial.println("Demonstrating compositor integration...");
+    LOG_INFO("Main", "Demonstrating compositor integration...");
     layoutManager.demonstrateCompositorIntegration();
 
     // Force an immediate refresh to load the image
-    Serial.println("Waiting for WiFi connection...");
+    LOG_INFO("Main", "Waiting for WiFi connection...");
     delay(5000); // Give more time for WiFi to connect
-    Serial.println("Forcing immediate refresh...");
+    LOG_INFO("Main", "Forcing immediate refresh...");
     layoutManager.forceRefresh();
-    Serial.println("Setup complete");
+    LOG_INFO("Main", "Setup complete");
 }
 
 void loop() {
@@ -53,8 +57,8 @@ void loop() {
 
         // If no updates needed for the threshold time, enter deep sleep
         if (currentTime - lastActivity > sleepThreshold) {
-            Serial.println("Entering deep sleep mode...");
-            Serial.printf("Sleep threshold: %lu ms, shortest update interval: %lu ms\n", sleepThreshold, cachedShortestInterval);
+            LOG_INFO("Main", "Entering deep sleep mode...");
+            LOG_INFO("Main", "Sleep threshold: %lu ms, shortest update interval: %lu ms", sleepThreshold, cachedShortestInterval);
 
             // Setup wake sources using config values
             int wakeButtonPin = layoutManager.getWakeButtonPin();
@@ -69,14 +73,14 @@ void loop() {
     // Debug: Print status every 2 minutes (reduced spam)
     static unsigned long lastStatusPrint = 0;
     if (millis() - lastStatusPrint > 120000) { // 2 minutes instead of 30 seconds
-        Serial.println("=== STATUS CHECK ===");
-        Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+        LOG_INFO("Main", "=== STATUS CHECK ===");
+        LOG_INFO("Main", "WiFi Status: %s", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
         if (WiFi.status() == WL_CONNECTED) {
-            Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-            Serial.printf("Signal Strength: %d dBm\n", WiFi.RSSI());
+            LOG_INFO("Main", "IP Address: %s", WiFi.localIP().toString().c_str());
+            LOG_INFO("Main", "Signal Strength: %d dBm", WiFi.RSSI());
         }
-        Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
-        Serial.printf("Uptime: %lu seconds\n", millis() / 1000);
+        LOG_INFO("Main", "Free heap: %d bytes", ESP.getFreeHeap());
+        LOG_INFO("Main", "Uptime: %lu seconds", millis() / 1000);
         lastStatusPrint = millis();
         lastActivity = millis(); // Reset activity timer
     }
@@ -91,7 +95,7 @@ void handleWakeButton() {
     // Debug: Print button states periodically
     static unsigned long lastDebugPrint = 0;
     if (millis() - lastDebugPrint > 5000) { // Every 5 seconds
-        Serial.printf("Button states - Pin 36: %d, Pin 34: %d, Pin 39: %d\n", button36, button34, button39);
+        LOG_DEBUG("Main", "Button states - Pin 36: %d, Pin 34: %d, Pin 39: %d", button36, button34, button39);
         lastDebugPrint = millis();
     }
 
@@ -102,7 +106,7 @@ void handleWakeButton() {
         (button34 == LOW && lastButton34 == HIGH) ||
         (button39 == LOW && lastButton39 == HIGH)) {
 
-        Serial.println("Button pressed - refreshing layout");
+        LOG_INFO("Main", "Button pressed - refreshing layout");
         layoutManager.forceRefresh();
         delay(500); // Prevent multiple triggers
     }

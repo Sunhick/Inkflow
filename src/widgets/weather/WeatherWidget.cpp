@@ -1,4 +1,5 @@
 #include "WeatherWidget.h"
+#include "../../core/Logger.h"
 #include "../../core/Compositor.h"
 #include "../../managers/ConfigManager.h"
 
@@ -12,7 +13,7 @@ WeatherWidget::WeatherWidget(Inkplate& display, const String& latitude, const St
 }
 
 void WeatherWidget::begin() {
-    Serial.println("Initializing weather widget...");
+    LOG_INFO("WeatherWidget", "Initializing weather widget...");
     currentWeather.isValid = false;
     lastWeatherUpdate = 0;
 }
@@ -23,15 +24,15 @@ bool WeatherWidget::shouldUpdate() {
 }
 
 void WeatherWidget::render(const LayoutRegion& region) {
-    Serial.printf("Rendering weather widget in region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("WeatherWidget", "Rendering in region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region
     clearRegion(region);
 
     // Fetch weather data if not valid
     if (!currentWeather.isValid) {
-        Serial.println("Weather data not valid, attempting fetch...");
+        LOG_INFO("WeatherWidget", "Weather data not valid, attempting fetch...");
         fetchWeatherData();
     }
 
@@ -42,15 +43,15 @@ void WeatherWidget::render(const LayoutRegion& region) {
 }
 
 void WeatherWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    Serial.printf("Rendering weather widget to compositor in region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("WeatherWidget", "Rendering to compositor in region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the widget region on compositor
     clearRegionOnCompositor(compositor, region);
 
     // Fetch weather data if not valid
     if (!currentWeather.isValid) {
-        Serial.println("Weather data not valid, attempting fetch...");
+        LOG_INFO("WeatherWidget", "Weather data not valid, attempting fetch...");
         fetchWeatherData();
     }
 
@@ -62,16 +63,16 @@ void WeatherWidget::renderToCompositor(Compositor& compositor, const LayoutRegio
 
 void WeatherWidget::fetchWeatherData() {
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected, cannot fetch weather");
+        LOG_WARN("WeatherWidget", "WiFi not connected, cannot fetch weather");
         currentWeather.isValid = false;
         return;
     }
 
-    Serial.println("Fetching weather data...");
+    LOG_INFO("WeatherWidget", "Fetching weather data...");
 
     HTTPClient http;
     String url = buildWeatherURL();
-    Serial.printf("Weather URL: %s\n", url.c_str());
+    LOG_DEBUG("WeatherWidget", "Weather URL: %s", url.c_str());
 
     http.begin(url);
     http.setTimeout(5000); // 5 second timeout
@@ -80,10 +81,10 @@ void WeatherWidget::fetchWeatherData() {
 
     if (httpCode == HTTP_CODE_OK) {
         String response = http.getString();
-        Serial.printf("Weather response: %s\n", response.c_str());
+        LOG_DEBUG("WeatherWidget", "Weather response: %s", response.c_str());
         parseWeatherResponse(response);
     } else {
-        Serial.printf("Weather API error: %d\n", httpCode);
+        LOG_ERROR("WeatherWidget", "Weather API error: %d", httpCode);
         currentWeather.isValid = false;
     }
 
@@ -104,7 +105,7 @@ void WeatherWidget::parseWeatherResponse(String response) {
     DeserializationError error = deserializeJson(doc, response.c_str());
 
     if (error) {
-        Serial.printf("JSON parsing error: %s\n", error.c_str());
+        LOG_ERROR("WeatherWidget", "JSON parsing error: %s", error.c_str());
         currentWeather.isValid = false;
         return;
     }
@@ -127,13 +128,13 @@ void WeatherWidget::parseWeatherResponse(String response) {
 
         currentWeather.isValid = true;
 
-        Serial.printf("Weather: %.1f°F, %s, %d%% rain (code: %d)\n",
-                      currentWeather.temperature,
-                      currentWeather.description.c_str(),
-                      currentWeather.precipitationProbability,
-                      weatherCode);
+        LOG_INFO("WeatherWidget", "Weather: %.1f°F, %s, %d%% rain (code: %d)",
+                 currentWeather.temperature,
+                 currentWeather.description.c_str(),
+                 currentWeather.precipitationProbability,
+                 weatherCode);
     } else {
-        Serial.println("Failed to parse weather data");
+        LOG_ERROR("WeatherWidget", "Failed to parse weather data");
         currentWeather.isValid = false;
     }
 }

@@ -1,4 +1,5 @@
 #include "Compositor.h"
+#include "Logger.h"
 #include <cstring>
 #include <algorithm>
 
@@ -27,7 +28,7 @@ Compositor::Compositor(int width, int height)
     // Validate dimensions
     if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
         setError(CompositorError::InvalidDimensions);
-        Serial.printf("Compositor: Invalid dimensions %dx%d\n", width, height);
+        LOG_ERROR("Compositor", "Invalid dimensions %dx%d", width, height);
         return;
     }
 
@@ -36,12 +37,12 @@ Compositor::Compositor(int width, int height)
     // Check for potential overflow
     if (surfaceSize / bytesPerPixel / surfaceHeight != static_cast<size_t>(surfaceWidth)) {
         setError(CompositorError::InvalidDimensions);
-        Serial.println("Compositor: Surface size calculation overflow");
+        LOG_ERROR("Compositor", "Surface size calculation overflow");
         return;
     }
 
-    Serial.printf("Compositor: Created with dimensions %dx%d, surface size: %zu bytes\n",
-                 width, height, surfaceSize);
+    LOG_DEBUG("Compositor", "Created with dimensions %dx%d, surface size: %zu bytes",
+              width, height, surfaceSize);
 }
 
 Compositor::~Compositor() {
@@ -91,29 +92,29 @@ bool Compositor::initialize() {
     clear();
     resetChangeTracking();
 
-    Serial.printf("Compositor: Successfully initialized %dx%d surface (%zu bytes)\n",
-                 surfaceWidth, surfaceHeight, surfaceSize);
+    LOG_INFO("Compositor", "Successfully initialized %dx%d surface (%zu bytes)",
+             surfaceWidth, surfaceHeight, surfaceSize);
     return true;
 }
 
 bool Compositor::initializeWithRetry(int maxAttempts) {
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-        Serial.printf("Compositor: Initialization attempt %d/%d\n", attempt, maxAttempts);
+        LOG_DEBUG("Compositor", "Initialization attempt %d/%d", attempt, maxAttempts);
 
         if (initialize()) {
-            Serial.printf("Compositor: Successfully initialized on attempt %d\n", attempt);
+            LOG_INFO("Compositor", "Successfully initialized on attempt %d", attempt);
             return true;
         }
 
         // Wait before retry (exponential backoff)
         if (attempt < maxAttempts) {
             int delayMs = 100 * (1 << (attempt - 1)); // 100ms, 200ms, 400ms, etc.
-            Serial.printf("Compositor: Initialization failed, retrying in %dms\n", delayMs);
+            LOG_DEBUG("Compositor", "Initialization failed, retrying in %dms", delayMs);
             delay(delayMs);
         }
     }
 
-    Serial.printf("Compositor: Failed to initialize after %d attempts\n", maxAttempts);
+    LOG_ERROR("Compositor", "Failed to initialize after %d attempts", maxAttempts);
     setFallbackMode(true);
     return false;
 }
@@ -160,9 +161,9 @@ bool Compositor::clearRegion(const LayoutRegion& region) {
             logError("clearRegion", lastError);
             return false;
         }
-        Serial.printf("Compositor: Corrected invalid region (%d,%d,%d,%d) to (%d,%d,%d,%d)\n",
-                     region.getX(), region.getY(), region.getWidth(), region.getHeight(),
-                     correctedRegion.getX(), correctedRegion.getY(),
+        LOG_WARN("Compositor", "Corrected invalid region (%d,%d,%d,%d) to (%d,%d,%d,%d)",
+                 region.getX(), region.getY(), region.getWidth(), region.getHeight(),
+                 correctedRegion.getX(), correctedRegion.getY(),
                      correctedRegion.getWidth(), correctedRegion.getHeight());
         return clearRegion(correctedRegion);
     }
@@ -179,7 +180,7 @@ bool Compositor::clearRegion(const LayoutRegion& region) {
         for (int x = startX; x < endX; x++) {
             if (!setPixel(x, y, 255)) {  // White
                 // Continue with other pixels even if one fails
-                Serial.printf("Compositor: Failed to clear pixel at (%d,%d)\n", x, y);
+                LOG_WARN("Compositor", "Failed to clear pixel at (%d,%d)", x, y);
             }
         }
     }
@@ -380,7 +381,7 @@ bool Compositor::displayToInkplate(Inkplate& display) {
     }
 
     try {
-        Serial.println("Compositor: Starting full display update");
+        LOG_DEBUG("Compositor", "Starting full display update");
 
         // Clear the display buffer
         display.clearDisplay();
@@ -415,7 +416,7 @@ bool Compositor::displayToInkplate(Inkplate& display) {
         // Reset change tracking after successful display
         resetChangeTracking();
 
-        Serial.println("Compositor: Full display update completed successfully");
+        LOG_DEBUG("Compositor", "Full display update completed successfully");
         return true;
     } catch (...) {
         setError(CompositorError::DisplayUpdateFailed);
@@ -432,7 +433,7 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display) {
     }
 
     if (!hasChanges) {
-        Serial.println("Compositor: No changes to display");
+        LOG_DEBUG("Compositor", "No changes to display");
         return true; // Not an error, just nothing to do
     }
 
@@ -449,37 +450,37 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display, const std::vector<L
     }
 
     if (specificRegions.empty()) {
-        Serial.println("Compositor: No regions to update");
+        LOG_DEBUG("Compositor", "No regions to update");
         return true;
     }
 
     try {
         unsigned long startTime = millis();
-        Serial.println("Compositor: Performing optimized partial display update...");
+        LOG_DEBUG("Compositor", "Performing optimized partial display update...");
 
         // Optimize regions for efficient partial updates
         std::vector<LayoutRegion> optimizedRegions = coalesceRegions(specificRegions);
 
         // Check if we should use partial update or fall back to full update
         if (!shouldUsePartialUpdate(optimizedRegions)) {
-            Serial.println("Compositor: Falling back to full display update for efficiency");
+            LOG_DEBUG("Compositor", "Falling back to full display update for efficiency");
             return displayToInkplate(display);
         }
 
-        Serial.printf("Compositor: Optimized %d regions to %d for update\n",
-                     specificRegions.size(), optimizedRegions.size());
+        LOG_DEBUG("Compositor", "Optimized %d regions to %d for update",
+                  specificRegions.size(), optimizedRegions.size());
 
         size_t totalPixelsUpdated = 0;
 
         // Update each optimized region
         for (const auto& region : optimizedRegions) {
-            Serial.printf("Compositor: Updating region (%d,%d) %dx%d\n",
-                         region.getX(), region.getY(), region.getWidth(), region.getHeight());
+            LOG_DEBUG("Compositor", "Updating region (%d,%d) %dx%d",
+                      region.getX(), region.getY(), region.getWidth(), region.getHeight());
 
             // Validate region before processing
             if (!validateRegion(region)) {
-                Serial.printf("Compositor: Skipping invalid region (%d,%d) %dx%d\n",
-                             region.getX(), region.getY(), region.getWidth(), region.getHeight());
+                LOG_WARN("Compositor", "Skipping invalid region (%d,%d) %dx%d",
+                         region.getX(), region.getY(), region.getWidth(), region.getHeight());
                 continue;
             }
 
@@ -521,8 +522,8 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display, const std::vector<L
         // Reset change tracking after successful partial display
         resetChangeTracking();
 
-        Serial.printf("Compositor: Partial display update completed in %lums (%d pixels)\n",
-                     totalUpdateTime, totalPixelsUpdated);
+        LOG_DEBUG("Compositor", "Partial display update completed in %lums (%d pixels)",
+                  totalUpdateTime, totalPixelsUpdated);
         return true;
     } catch (...) {
         setError(CompositorError::DisplayUpdateFailed);
@@ -593,12 +594,12 @@ LayoutRegion Compositor::mergeRegions(const LayoutRegion& a, const LayoutRegion&
 void Compositor::setError(CompositorError error) {
     lastError = error;
     if (error != CompositorError::None) {
-        Serial.printf("Compositor: Error set - %s\n", getErrorString(error));
+        LOG_ERROR("Compositor", "Error set - %s", getErrorString(error));
     }
 }
 
 void Compositor::logError(const char* operation, CompositorError error) const {
-    Serial.printf("Compositor: %s failed - %s\n", operation, getErrorString(error));
+    LOG_ERROR("Compositor", "%s failed - %s", operation, getErrorString(error));
 }
 
 const char* Compositor::getErrorString(CompositorError error) const {
@@ -667,7 +668,7 @@ LayoutRegion Compositor::correctInvalidRegion(const LayoutRegion& region) const 
 }
 
 bool Compositor::recoverFromError() {
-    Serial.println("Compositor: Attempting error recovery");
+    LOG_INFO("Compositor", "Attempting error recovery");
 
     CompositorError originalError = lastError;
     clearError();
@@ -677,7 +678,7 @@ bool Compositor::recoverFromError() {
             // Try to reinitialize with retry
             cleanup();
             if (initializeWithRetry(2)) {
-                Serial.println("Compositor: Recovered from memory allocation failure");
+                LOG_INFO("Compositor", "Recovered from memory allocation failure");
                 setFallbackMode(false);
                 return true;
             }
@@ -687,19 +688,19 @@ bool Compositor::recoverFromError() {
         case CompositorError::SurfaceNotInitialized:
             // Try to initialize
             if (initialize()) {
-                Serial.println("Compositor: Recovered from uninitialized surface");
+                LOG_INFO("Compositor", "Recovered from uninitialized surface");
                 return true;
             }
             return false;
 
         case CompositorError::DisplayUpdateFailed:
             // Clear error and try again next time
-            Serial.println("Compositor: Cleared display update error");
+            LOG_INFO("Compositor", "Cleared display update error");
             return true;
 
         default:
             // For other errors, just clear and continue
-            Serial.printf("Compositor: Cleared error: %s\n", getErrorString(originalError));
+            LOG_INFO("Compositor", "Cleared error: %s", getErrorString(originalError));
             return true;
     }
 }
@@ -816,13 +817,13 @@ bool Compositor::shouldUsePartialUpdate(const std::vector<LayoutRegion>& regions
     float updateRatio = static_cast<float>(totalUpdateArea) / totalSurfaceArea;
 
     if (updateRatio > 0.3f) {
-        Serial.printf("Compositor: Update ratio %.2f%% too high for partial update\n", updateRatio * 100);
+        LOG_DEBUG("Compositor", "Update ratio %.2f%% too high for partial update", updateRatio * 100);
         return false;
     }
 
     // Check if regions are too fragmented
     if (regions.size() > 10) {
-        Serial.printf("Compositor: Too many regions (%d) for efficient partial update\n", regions.size());
+        LOG_DEBUG("Compositor", "Too many regions (%d) for efficient partial update", regions.size());
         return false;
     }
 

@@ -1,4 +1,5 @@
 #include "ConfigManager.h"
+#include "../core/Logger.h"
 #include <FS.h>
 #include <SPIFFS.h>
 
@@ -32,39 +33,39 @@ ConfigManager::ConfigManager() : configFileExists(false) {
 
 bool ConfigManager::begin() {
     if (!SPIFFS.begin(true)) {
-        Serial.println("Failed to mount SPIFFS");
+        LOG_ERROR("ConfigManager", "Failed to mount SPIFFS");
         return false;
     }
 
-    Serial.println("SPIFFS mounted successfully");
+    LOG_INFO("ConfigManager", "SPIFFS mounted successfully");
 
     return loadConfig();
 }
 
 bool ConfigManager::loadConfig() {
-    Serial.printf("Looking for config file: %s\n", CONFIG_FILE);
+    LOG_DEBUG("ConfigManager", "Looking for config file: %s", CONFIG_FILE);
 
     configFileExists = SPIFFS.exists(CONFIG_FILE);
 
     if (!configFileExists) {
-        Serial.printf("Config file %s not found, using defaults\n", CONFIG_FILE);
+        LOG_WARN("ConfigManager", "Config file %s not found, using defaults", CONFIG_FILE);
         return saveConfig(); // Create default config file
     }
 
     fs::File file = SPIFFS.open(CONFIG_FILE, "r");
     if (!file) {
-        Serial.printf("Failed to open config file: %s\n", CONFIG_FILE);
+        LOG_ERROR("ConfigManager", "Failed to open config file: %s", CONFIG_FILE);
         return false;
     }
 
-    Serial.printf("Config file opened successfully, size: %d bytes\n", file.size());
+    LOG_DEBUG("ConfigManager", "Config file opened successfully, size: %d bytes", file.size());
 
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, file);
     file.close();
 
     if (error) {
-        Serial.printf("Failed to parse config file: %s\n", error.c_str());
+        LOG_ERROR("ConfigManager", "Failed to parse config file: %s", error.c_str());
         return false;
     }
 
@@ -87,7 +88,7 @@ bool ConfigManager::loadConfig() {
         String typeStr = widget["type"] | "";
         WidgetType widgetType = WidgetTypeRegistry::fromString(typeStr);
 
-        Serial.printf("Parsing widget type: '%s' -> %d\n", typeStr.c_str(), (int)widgetType);
+        LOG_DEBUG("ConfigManager", "Parsing widget type: '%s' -> %d", typeStr.c_str(), (int)widgetType);
 
         switch (widgetType) {
             case WidgetType::WEATHER: {
@@ -111,23 +112,23 @@ bool ConfigManager::loadConfig() {
 
             case WidgetType::DATE_TIME: {
                 String regionStr = widget["region"] | "";
-                Serial.printf("Parsing TimeWidget for region: %s\n", regionStr.c_str());
+                LOG_DEBUG("ConfigManager", "Parsing TimeWidget for region: %s", regionStr.c_str());
                 DateTimeWidgetConfig dateTimeConfig;
                 dateTimeConfig.region = widget["region"] | "";
                 dateTimeConfig.timeUpdateMs = widget["timeUpdateMs"] | 900000UL;
                 config.dateTimeWidgets.push_back(dateTimeConfig);
-                Serial.printf("Added TimeWidget to config, total: %d\n", config.dateTimeWidgets.size());
+                LOG_DEBUG("ConfigManager", "Added TimeWidget to config, total: %d", config.dateTimeWidgets.size());
                 break;
             }
 
             case WidgetType::BATTERY: {
                 String regionStr = widget["region"] | "";
-                Serial.printf("Parsing BatteryWidget for region: %s\n", regionStr.c_str());
+                LOG_DEBUG("ConfigManager", "Parsing BatteryWidget for region: %s", regionStr.c_str());
                 BatteryWidgetConfig batteryConfig;
                 batteryConfig.region = widget["region"] | "";
                 batteryConfig.batteryUpdateMs = widget["batteryUpdateMs"] | 900000UL;
                 config.batteryWidgets.push_back(batteryConfig);
-                Serial.printf("Added BatteryWidget to config, total: %d\n", config.batteryWidgets.size());
+                LOG_DEBUG("ConfigManager", "Added BatteryWidget to config, total: %d", config.batteryWidgets.size());
                 break;
             }
 
@@ -154,7 +155,7 @@ bool ConfigManager::loadConfig() {
 
             case WidgetType::UNKNOWN:
             default:
-                Serial.printf("Unknown widget type: %s\n", typeStr.c_str());
+                LOG_WARN("ConfigManager", "Unknown widget type: %s", typeStr.c_str());
                 break;
         }
     }
@@ -187,13 +188,13 @@ bool ConfigManager::loadConfig() {
     config.enableDeepSleep = doc["Power"]["EnableDeepSleep"] | true;
     config.deepSleepThresholdMs = doc["Power"]["DeepSleepThresholdMs"] | 600000UL;
 
-    Serial.println("Configuration loaded successfully");
-    Serial.printf("WiFi SSID: %s\n", config.wifiSSID.c_str());
-    Serial.printf("Server URL: %s\n", config.serverURL.c_str());
-    Serial.printf("Loaded %d weather widgets, %d name widgets, %d dateTime widgets, %d battery widgets, %d image widgets\n",
-                  config.weatherWidgets.size(), config.nameWidgets.size(), config.dateTimeWidgets.size(),
-                  config.batteryWidgets.size(), config.imageWidgets.size());
-    Serial.printf("Loaded %d regions\n", config.regions.size());
+    LOG_INFO("ConfigManager", "Configuration loaded successfully");
+    LOG_INFO("ConfigManager", "WiFi SSID: %s", config.wifiSSID.c_str());
+    LOG_INFO("ConfigManager", "Server URL: %s", config.serverURL.c_str());
+    LOG_INFO("ConfigManager", "Loaded %d weather, %d name, %d dateTime, %d battery, %d image widgets",
+             config.weatherWidgets.size(), config.nameWidgets.size(), config.dateTimeWidgets.size(),
+             config.batteryWidgets.size(), config.imageWidgets.size());
+    LOG_INFO("ConfigManager", "Loaded %d regions", config.regions.size());
 
     return true;
 }
@@ -273,18 +274,18 @@ bool ConfigManager::saveConfig() {
 
     fs::File file = SPIFFS.open(CONFIG_FILE, "w");
     if (!file) {
-        Serial.println("Failed to create config file");
+        LOG_ERROR("ConfigManager", "Failed to create config file");
         return false;
     }
 
     if (serializeJson(doc, file) == 0) {
-        Serial.println("Failed to write config file");
+        LOG_ERROR("ConfigManager", "Failed to write config file");
         file.close();
         return false;
     }
 
     file.close();
-    Serial.println("Configuration saved successfully");
+    LOG_INFO("ConfigManager", "Configuration saved successfully");
     return true;
 }
 

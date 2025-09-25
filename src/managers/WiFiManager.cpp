@@ -1,4 +1,5 @@
 #include "WiFiManager.h"
+#include "../core/Logger.h"
 
 WiFiManager::WiFiManager(const char* ssid, const char* password)
     : ssid(ssid), password(password), lastConnectionCheck(0) {}
@@ -20,7 +21,7 @@ void WiFiManager::checkConnection() {
 
     if (currentTime - lastConnectionCheck >= CHECK_INTERVAL) {
         if (!isConnected()) {
-            Serial.println("WiFi connection lost, attempting reconnection...");
+            LOG_WARN("WiFiManager", "WiFi connection lost, attempting reconnection...");
             connect();
         } else {
             monitorSignalStrength();
@@ -61,7 +62,7 @@ bool WiFiManager::attemptConnection() {
 }
 
 void WiFiManager::logConnectionAttempt() {
-    Serial.printf("Connecting to WiFi: %s\n", ssid);
+    LOG_INFO("WiFiManager", "Connecting to WiFi: %s", ssid);
 }
 
 bool WiFiManager::waitForConnection() {
@@ -69,11 +70,12 @@ bool WiFiManager::waitForConnection() {
 
     while (!isConnected() && attempts < MAX_RETRIES) {
         delay(500);
-        Serial.print(".");
         attempts++;
 
         if (attempts % 10 == 0) {
-            Serial.printf("\nAttempt %d/%d\n", attempts, MAX_RETRIES);
+            LOG_DEBUG("WiFiManager", "Connection attempt %d/%d", attempts, MAX_RETRIES);
+        } else if (attempts % 5 == 0) {
+            LOG_DEBUG("WiFiManager", "Connecting... (%d/%d)", attempts, MAX_RETRIES);
         }
     }
 
@@ -81,19 +83,19 @@ bool WiFiManager::waitForConnection() {
         logSuccessfulConnection();
         return true;
     } else {
-        Serial.println("\nWiFi connection failed");
+        LOG_ERROR("WiFiManager", "WiFi connection failed after %d attempts", attempts);
         return false;
     }
 }
 
 void WiFiManager::logSuccessfulConnection() {
-    Serial.printf("\nWiFi connected! IP: %s\n", getIPAddress().c_str());
-    Serial.printf("Signal strength: %d dBm\n", getSignalStrength());
+    LOG_INFO("WiFiManager", "WiFi connected! IP: %s", getIPAddress().c_str());
+    LOG_INFO("WiFiManager", "Signal strength: %d dBm", getSignalStrength());
 }
 
 void WiFiManager::monitorSignalStrength() {
     int rssi = getSignalStrength();
     if (rssi < -80) {
-        Serial.printf("Warning: Weak WiFi signal (%d dBm)\n", rssi);
+        LOG_WARN("WiFiManager", "Weak WiFi signal: %d dBm", rssi);
     }
 }

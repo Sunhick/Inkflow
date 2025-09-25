@@ -1,4 +1,5 @@
 #include "TimeWidget.h"
+#include "../../core/Logger.h"
 #include "../../core/Compositor.h"
 #include "../../managers/ConfigManager.h"
 
@@ -17,11 +18,11 @@ TimeWidget::TimeWidget(Inkplate& display)
 
 TimeWidget::TimeWidget(Inkplate& display, unsigned long updateInterval)
     : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(updateInterval) {
-    Serial.printf("TimeWidget created with update interval: %lu ms (%lu seconds)\n", updateInterval, updateInterval / 1000);
+    LOG_INFO("TimeWidget", "Created with update interval: %lu ms (%lu seconds)", updateInterval, updateInterval / 1000);
 }
 
 void TimeWidget::begin() {
-    Serial.println("Initializing time widget...");
+    LOG_INFO("TimeWidget", "Initializing time widget...");
     timeInitialized = false;
     lastTimeUpdate = 0;
 }
@@ -32,61 +33,61 @@ bool TimeWidget::shouldUpdate() {
 }
 
 void TimeWidget::render(const LayoutRegion& region) {
-    Serial.printf("TimeWidget::render() called - region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("TimeWidget", "render() called - region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the region before drawing to prevent text overwriting
     clearRegion(region);
 
     // Sync time if not initialized
     if (!timeInitialized) {
-        Serial.println("Time not initialized, attempting NTP sync...");
+        LOG_INFO("TimeWidget", "Time not initialized, attempting NTP sync...");
         syncTimeWithNTP();
     }
 
     // Draw time content within the region
-    Serial.println("About to call drawTimeDisplay()...");
+    LOG_DEBUG("TimeWidget", "About to call drawTimeDisplay()...");
     drawTimeDisplay(region);
-    Serial.println("drawTimeDisplay() completed");
+    LOG_DEBUG("TimeWidget", "drawTimeDisplay() completed");
 
     lastTimeUpdate = millis();
-    Serial.printf("TimeWidget::render() completed - lastTimeUpdate set to %lu\n", lastTimeUpdate);
+    LOG_DEBUG("TimeWidget", "render() completed - lastTimeUpdate set to %lu", lastTimeUpdate);
 }
 
 void TimeWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    Serial.printf("TimeWidget::renderToCompositor() called - region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("TimeWidget", "renderToCompositor() called - region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the region on compositor before drawing to prevent text overwriting
     clearRegionOnCompositor(compositor, region);
 
     // Sync time if not initialized
     if (!timeInitialized) {
-        Serial.println("Time not initialized, attempting NTP sync...");
+        LOG_INFO("TimeWidget", "Time not initialized, attempting NTP sync...");
         syncTimeWithNTP();
     }
 
     // Draw time content to compositor within the region
-    Serial.println("About to call drawTimeDisplayToCompositor()...");
+    LOG_DEBUG("TimeWidget", "About to call drawTimeDisplayToCompositor()...");
     drawTimeDisplayToCompositor(compositor, region);
-    Serial.println("drawTimeDisplayToCompositor() completed");
+    LOG_DEBUG("TimeWidget", "drawTimeDisplayToCompositor() completed");
 
     lastTimeUpdate = millis();
-    Serial.printf("TimeWidget::renderToCompositor() completed - lastTimeUpdate set to %lu\n", lastTimeUpdate);
+    LOG_DEBUG("TimeWidget", "renderToCompositor() completed - lastTimeUpdate set to %lu", lastTimeUpdate);
 }
 
 void TimeWidget::syncTimeWithNTP() {
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected, cannot sync time");
+        LOG_WARN("TimeWidget", "WiFi not connected, cannot sync time");
         timeInitialized = false;
         return;
     }
 
-    Serial.println("Syncing time with NTP server...");
+    LOG_INFO("TimeWidget", "Syncing time with NTP server...");
 
     // Try multiple NTP servers
     for (int serverIndex = 0; serverIndex < 4; serverIndex++) {
-        Serial.printf("Trying NTP server: %s\n", ntpServers[serverIndex]);
+        LOG_DEBUG("TimeWidget", "Trying NTP server: %s", ntpServers[serverIndex]);
 
         configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, ntpServers[serverIndex]);
 
@@ -98,10 +99,10 @@ void TimeWidget::syncTimeWithNTP() {
 
             if (now > 1577836800) { // January 1, 2020 00:00:00 UTC
                 timeInitialized = true;
-                Serial.println("Time synchronized successfully!");
+                LOG_INFO("TimeWidget", "Time synchronized successfully!");
 
                 struct tm* timeinfo = localtime(&now);
-                Serial.printf("Current time: %s", asctime(timeinfo));
+                LOG_DEBUG("TimeWidget", "Current time: %s", asctime(timeinfo));
                 return;
             }
 
@@ -109,23 +110,23 @@ void TimeWidget::syncTimeWithNTP() {
             attempts++;
         }
 
-        Serial.printf("Server %s failed, trying next...\n", ntpServers[serverIndex]);
+        LOG_WARN("TimeWidget", "Server %s failed, trying next...", ntpServers[serverIndex]);
     }
 
-    Serial.println("All NTP servers failed - time sync unsuccessful");
+    LOG_ERROR("TimeWidget", "All NTP servers failed - time sync unsuccessful");
     timeInitialized = false;
 }
 
 void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
-    Serial.println("TimeWidget::drawTimeDisplay() - Drawing normal time display");
-    Serial.printf("TimeWidget region bounds: (%d,%d) %dx%d\n",
-                  region.getX(), region.getY(), region.getWidth(), region.getHeight());
+    LOG_DEBUG("TimeWidget", "drawTimeDisplay() - Drawing normal time display");
+    LOG_DEBUG("TimeWidget", "region bounds: (%d,%d) %dx%d",
+              region.getX(), region.getY(), region.getWidth(), region.getHeight());
 
     int margin = 10;
     int labelX = region.getX() + margin;
     int labelY = region.getY() + margin;
 
-    Serial.printf("TimeWidget drawing at labelX=%d, labelY=%d\n", labelX, labelY);
+    LOG_DEBUG("TimeWidget", "drawing at labelX=%d, labelY=%d", labelX, labelY);
 
     // Draw "DATE TIME" label
     display.setCursor(labelX, labelY + 20);
@@ -133,7 +134,7 @@ void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.print("DATE TIME");
-    Serial.println("Drew DATE TIME label");
+    LOG_DEBUG("TimeWidget", "Drew DATE TIME label");
 
     if (!timeInitialized) {
         display.setCursor(labelX, labelY + 60);
@@ -141,13 +142,13 @@ void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
         display.setTextColor(0); // Black text
         display.setTextWrap(false);
         display.print("SYNC FAIL");
-        Serial.println("Drew SYNC FAIL message");
+        LOG_WARN("TimeWidget", "Drew SYNC FAIL message");
         return;
     }
 
     // Get formatted time string
     String timeStr = getFormattedTime();
-    Serial.printf("Time string: %s\n", timeStr.c_str());
+    LOG_DEBUG("TimeWidget", "Time string: %s", timeStr.c_str());
 
     // Draw time
     display.setCursor(labelX, labelY + 60);
@@ -155,7 +156,7 @@ void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.print(timeStr);
-    Serial.printf("Drew time string: %s\n", timeStr.c_str());
+    LOG_DEBUG("TimeWidget", "Drew time string: %s", timeStr.c_str());
 
     // Draw date (larger font)
     String dateStr = getFormattedDate();
@@ -164,7 +165,7 @@ void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.print(dateStr);
-    Serial.printf("Drew date string: %s\n", dateStr.c_str());
+    LOG_DEBUG("TimeWidget", "Drew date string: %s", dateStr.c_str());
 
     // Draw day of week (larger font)
     String dayStr = getDayOfWeek();
@@ -173,7 +174,7 @@ void TimeWidget::drawTimeDisplay(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.print(dayStr);
-    Serial.printf("Drew day string: %s\n", dayStr.c_str());
+    LOG_DEBUG("TimeWidget", "Drew day string: %s", dayStr.c_str());
 }
 
 String TimeWidget::getFormattedDate() {
@@ -210,7 +211,7 @@ String TimeWidget::getDayOfWeek() {
 }
 
 void TimeWidget::forceTimeSync() {
-    Serial.println("Forcing time synchronization...");
+    LOG_INFO("TimeWidget", "Forcing time synchronization...");
     timeInitialized = false;
     syncTimeWithNTP();
 }
@@ -220,12 +221,12 @@ bool TimeWidget::isTimeInitialized() const {
 }
 
 void TimeWidget::forceUpdate() {
-    Serial.println("Force updating time widget...");
+    LOG_INFO("TimeWidget", "Force updating time widget...");
     lastTimeUpdate = 0; // Force next shouldUpdate() to return true
 }
 
 void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    Serial.println("TimeWidget::drawTimeDisplayToCompositor() - Drawing time to compositor");
+    LOG_DEBUG("TimeWidget", "drawTimeDisplayToCompositor() - Drawing time to compositor");
 
     int margin = 10;
     int labelX = region.getX() + margin;
@@ -237,26 +238,26 @@ void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const Layou
 
     // Draw "DATE TIME" label area (simplified as a rectangle)
     compositor.fillRect(labelX, labelY + 15, 120, 20, 0); // Black rectangle for label
-    Serial.println("Drew DATE TIME label area to compositor");
+    LOG_DEBUG("TimeWidget", "Drew DATE TIME label area to compositor");
 
     if (!timeInitialized) {
         // Draw "SYNC FAIL" area
         compositor.fillRect(labelX, labelY + 55, 100, 20, 0); // Black rectangle
-        Serial.println("Drew SYNC FAIL area to compositor");
+        LOG_WARN("TimeWidget", "Drew SYNC FAIL area to compositor");
         return;
     }
 
     // Draw time area (larger rectangle)
     compositor.fillRect(labelX, labelY + 50, 180, 30, 0); // Black rectangle for time
-    Serial.println("Drew time area to compositor");
+    LOG_DEBUG("TimeWidget", "Drew time area to compositor");
 
     // Draw date area
     compositor.fillRect(labelX, labelY + 100, 200, 20, 0); // Black rectangle for date
-    Serial.println("Drew date area to compositor");
+    LOG_DEBUG("TimeWidget", "Drew date area to compositor");
 
     // Draw day area
     compositor.fillRect(labelX, labelY + 130, 150, 20, 0); // Black rectangle for day
-    Serial.println("Drew day area to compositor");
+    LOG_DEBUG("TimeWidget", "Drew day area to compositor");
 
     // Note: This is a simplified implementation. For proper text rendering to compositor,
     // you would need to implement a text rendering system that draws to the compositor

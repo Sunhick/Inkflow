@@ -1,4 +1,5 @@
 #include "LayoutManager.h"
+#include "../core/Logger.h"
 #include "../widgets/image/ImageWidget.h"
 #include "../widgets/battery/BatteryWidget.h"
 #include "../widgets/time/TimeWidget.h"
@@ -34,26 +35,30 @@ LayoutManager::~LayoutManager() {
 
 void LayoutManager::begin() {
     Serial.begin(115200);
-    Serial.println("Starting Inkplate Layout Manager...");
+
+    // Set logger level (can be configured via config later)
+    Logger::setLogLevel(LogLevel::INFO);
+
+    LOG_INFO("LayoutManager", "Starting Inkplate Layout Manager...");
 
     // Initialize configuration manager first
     if (!configManager->begin()) {
-        Serial.println("Failed to initialize configuration manager!");
+        LOG_ERROR("LayoutManager", "Failed to initialize configuration manager!");
         return;
     }
 
     // Check if configuration is properly set up
     if (!configManager->isConfigured()) {
-        Serial.println("Configuration validation failed!");
-        Serial.println(configManager->getConfigurationError());
+        LOG_ERROR("LayoutManager", "Configuration validation failed!");
+        LOG_ERROR("LayoutManager", "Config error: %s", configManager->getConfigurationError().c_str());
     }
 
     const AppConfig& config = configManager->getConfig();
 
     // Debug: Check widget counts in config
-    Serial.printf("Config loaded - Widget counts: weather=%d, name=%d, dateTime=%d, battery=%d, image=%d, layout=%d\n",
-                  config.weatherWidgets.size(), config.nameWidgets.size(), config.dateTimeWidgets.size(),
-                  config.batteryWidgets.size(), config.imageWidgets.size(), config.layoutWidgets.size());
+    LOG_DEBUG("LayoutManager", "Config loaded - Widget counts: weather=%d, name=%d, dateTime=%d, battery=%d, image=%d, layout=%d",
+              config.weatherWidgets.size(), config.nameWidgets.size(), config.dateTimeWidgets.size(),
+              config.batteryWidgets.size(), config.imageWidgets.size(), config.layoutWidgets.size());
 
     // Calculate layout regions based on config
     calculateLayoutRegions();
@@ -64,18 +69,18 @@ void LayoutManager::begin() {
     // Initialize and integrate compositor with display manager
     if (compositor && compositor->initialize()) {
         displayManager->setCompositor(compositor);
-        Serial.println("Compositor initialized and integrated with DisplayManager");
+        LOG_INFO("LayoutManager", "Compositor initialized and integrated with DisplayManager");
     } else {
-        Serial.println("Warning: Compositor initialization failed, falling back to direct rendering");
+        LOG_WARN("LayoutManager", "Compositor initialization failed, falling back to direct rendering");
     }
 
     // Create WiFi manager with config values
     wifiManager = new WiFiManager(config.wifiSSID.c_str(), config.wifiPassword.c_str());
 
     // Create widgets and assign them to regions
-    Serial.println("About to call createAndAssignWidgets()...");
+    LOG_DEBUG("LayoutManager", "About to call createAndAssignWidgets()...");
     createAndAssignWidgets();
-    Serial.println("createAndAssignWidgets() completed");
+    LOG_DEBUG("LayoutManager", "createAndAssignWidgets() completed");
 
     initializeComponents();
     performInitialSetup();
@@ -84,22 +89,22 @@ void LayoutManager::begin() {
 void LayoutManager::calculateLayoutRegions() {
     const AppConfig& config = configManager->getConfig();
 
-    Serial.printf("Display dimensions: %dx%d\n", config.displayWidth, config.displayHeight);
+    LOG_DEBUG("LayoutManager", "Display dimensions: %dx%d", config.displayWidth, config.displayHeight);
 
     // Clear existing regions
     regions.clear();
     regionMap.clear();
 
     // Create regions from Layout section in config.json
-    Serial.printf("Creating regions from config, found %d regions\n", config.regions.size());
+    LOG_DEBUG("LayoutManager", "Creating regions from config, found %d regions", config.regions.size());
 
     for (const auto& regionPair : config.regions) {
         const String& regionId = regionPair.first;
         const RegionConfig& regionConfig = regionPair.second;
 
-        Serial.printf("Creating region '%s' at (%d,%d) %dx%d\n",
-                     regionId.c_str(), regionConfig.x, regionConfig.y,
-                     regionConfig.width, regionConfig.height);
+        LOG_DEBUG("LayoutManager", "Creating region '%s' at (%d,%d) %dx%d",
+                  regionId.c_str(), regionConfig.x, regionConfig.y,
+                  regionConfig.width, regionConfig.height);
 
         auto region = make_unique_helper<LayoutRegion>(
             regionConfig.x,
@@ -108,28 +113,28 @@ void LayoutManager::calculateLayoutRegions() {
             regionConfig.height
         );
 
-        Serial.printf("LayoutRegion created successfully for '%s'\n", regionId.c_str());
+        LOG_DEBUG("LayoutManager", "LayoutRegion created successfully for '%s'", regionId.c_str());
 
         // Add to region map for quick access
         regionMap[regionId] = region.get();
-        Serial.printf("Added region '%s' to regionMap\n", regionId.c_str());
+        LOG_DEBUG("LayoutManager", "Added region '%s' to regionMap", regionId.c_str());
 
         // Add to regions vector
         regions.push_back(std::move(region));
 
-        Serial.printf("Added region '%s' to regions vector\n", regionId.c_str());
+        LOG_DEBUG("LayoutManager", "Added region '%s' to regions vector", regionId.c_str());
     }
 
-    Serial.printf("Created %d regions from configuration\n", regions.size());
+    LOG_INFO("LayoutManager", "Created %d regions from configuration", regions.size());
 }
 
 void LayoutManager::createAndAssignWidgets() {
     const AppConfig& config = configManager->getConfig();
 
-    Serial.println("Creating widgets and regions based on configuration...");
+    LOG_INFO("LayoutManager", "Creating widgets and regions based on configuration...");
 
     // Create and assign weather widgets
-    Serial.printf("Creating %d weather widgets\n", config.weatherWidgets.size());
+    LOG_DEBUG("LayoutManager", "Creating %d weather widgets", config.weatherWidgets.size());
     for (const auto& weatherConfig : config.weatherWidgets) {
         WeatherWidget* widget = new WeatherWidget(display,
                                                  weatherConfig.latitude,
@@ -137,81 +142,81 @@ void LayoutManager::createAndAssignWidgets() {
                                                  weatherConfig.city,
                                                  weatherConfig.units);
 
-        Serial.printf("Created WeatherWidget for region: %s\n", weatherConfig.region.c_str());
+        LOG_DEBUG("LayoutManager", "Created WeatherWidget for region: %s", weatherConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(weatherConfig.region);
         if (region) {
             region->addWidget(widget);
-            Serial.printf("  WeatherWidget successfully assigned to region %s\n", weatherConfig.region.c_str());
+            LOG_DEBUG("LayoutManager", "  WeatherWidget successfully assigned to region %s", weatherConfig.region.c_str());
         } else {
-            Serial.printf("  ERROR: Failed to get region %s for WeatherWidget\n", weatherConfig.region.c_str());
+            LOG_ERROR("LayoutManager", "  ERROR: Failed to get region %s for WeatherWidget", weatherConfig.region.c_str());
         }
     }
 
     // Create and assign name widgets
-    Serial.printf("Creating %d name widgets\n", config.nameWidgets.size());
+    LOG_DEBUG("LayoutManager", "Creating %d name widgets", config.nameWidgets.size());
     for (const auto& nameConfig : config.nameWidgets) {
         NameWidget* widget = new NameWidget(display, nameConfig.familyName);
 
-        Serial.printf("Created NameWidget for region: %s\n", nameConfig.region.c_str());
+        LOG_DEBUG("LayoutManager", "Created NameWidget for region: %s", nameConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(nameConfig.region);
         if (region) {
             region->addWidget(widget);
-            Serial.printf("  NameWidget successfully assigned to region %s\n", nameConfig.region.c_str());
+            LOG_DEBUG("LayoutManager", "  NameWidget successfully assigned to region %s", nameConfig.region.c_str());
         } else {
-            Serial.printf("  ERROR: Failed to get region %s for NameWidget\n", nameConfig.region.c_str());
+            LOG_ERROR("LayoutManager", "  ERROR: Failed to get region %s for NameWidget", nameConfig.region.c_str());
         }
     }
 
     // Create and assign dateTime widgets
-    Serial.printf("Creating %d dateTime widgets\n", config.dateTimeWidgets.size());
+    LOG_DEBUG("LayoutManager", "Creating %d dateTime widgets", config.dateTimeWidgets.size());
     for (const auto& dateTimeConfig : config.dateTimeWidgets) {
         TimeWidget* widget = new TimeWidget(display, dateTimeConfig.timeUpdateMs);
         widget->begin(); // Initialize the widget immediately
 
-        Serial.printf("Created TimeWidget for region: %s\n", dateTimeConfig.region.c_str());
+        LOG_DEBUG("LayoutManager", "Created TimeWidget for region: %s", dateTimeConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(dateTimeConfig.region);
         if (region) {
-            Serial.printf("  TimeWidget region bounds: (%d,%d) %dx%d\n",
-                         region->getX(), region->getY(), region->getWidth(), region->getHeight());
+            LOG_DEBUG("LayoutManager", "  TimeWidget region bounds: (%d,%d) %dx%d",
+                      region->getX(), region->getY(), region->getWidth(), region->getHeight());
             region->addWidget(widget);
-            Serial.printf("  TimeWidget successfully assigned to region %s (region has %d widgets)\n",
-                         dateTimeConfig.region.c_str(), region->getWidgetCount());
+            LOG_DEBUG("LayoutManager", "  TimeWidget successfully assigned to region %s (region has %d widgets)",
+                      dateTimeConfig.region.c_str(), region->getWidgetCount());
         } else {
-            Serial.printf("  ERROR: Failed to get region %s for TimeWidget\n", dateTimeConfig.region.c_str());
+            LOG_ERROR("LayoutManager", "  ERROR: Failed to get region %s for TimeWidget", dateTimeConfig.region.c_str());
         }
     }
 
     // Create and assign battery widgets
-    Serial.printf("Creating %d battery widgets\n", config.batteryWidgets.size());
+    LOG_DEBUG("LayoutManager", "Creating %d battery widgets", config.batteryWidgets.size());
     for (const auto& batteryConfig : config.batteryWidgets) {
         BatteryWidget* widget = new BatteryWidget(display, batteryConfig.batteryUpdateMs);
         widget->begin(); // Initialize the widget immediately
 
-        Serial.printf("Created BatteryWidget for region: %s\n", batteryConfig.region.c_str());
+        LOG_DEBUG("LayoutManager", "Created BatteryWidget for region: %s", batteryConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(batteryConfig.region);
         if (region) {
-            Serial.printf("  BatteryWidget region bounds: (%d,%d) %dx%d\n",
-                         region->getX(), region->getY(), region->getWidth(), region->getHeight());
+            LOG_DEBUG("LayoutManager", "  BatteryWidget region bounds: (%d,%d) %dx%d",
+                      region->getX(), region->getY(), region->getWidth(), region->getHeight());
             region->addWidget(widget);
-            Serial.printf("  BatteryWidget successfully assigned to region %s (region has %d widgets)\n",
-                         batteryConfig.region.c_str(), region->getWidgetCount());
+            LOG_DEBUG("LayoutManager", "  BatteryWidget successfully assigned to region %s (region has %d widgets)",
+                      batteryConfig.region.c_str(), region->getWidgetCount());
         } else {
-            Serial.printf("  ERROR: Failed to get region %s for BatteryWidget\n", batteryConfig.region.c_str());
+            LOG_ERROR("LayoutManager", "  ERROR: Failed to get region %s for BatteryWidget", batteryConfig.region.c_str());
         }
     }
 
     // Create and assign image widgets
-    Serial.printf("Creating %d image widgets\n", config.imageWidgets.size());
+    LOG_DEBUG("LayoutManager", "Creating %d image widgets", config.imageWidgets.size());
     for (const auto& imageConfig : config.imageWidgets) {
         ImageWidget* widget = new ImageWidget(display, config.serverURL.c_str());
 
-        Serial.printf("Created ImageWidget for region: %s\n", imageConfig.region.c_str());
+        LOG_DEBUG("LayoutManager", "Created ImageWidget for region: %s", imageConfig.region.c_str());
         LayoutRegion* region = getOrCreateRegion(imageConfig.region);
         if (region) {
             region->addWidget(widget);
-            Serial.printf("  ImageWidget successfully assigned to region %s\n", imageConfig.region.c_str());
+            LOG_DEBUG("LayoutManager", "  ImageWidget successfully assigned to region %s", imageConfig.region.c_str());
         } else {
-            Serial.printf("  ERROR: Failed to get region %s for ImageWidget\n", imageConfig.region.c_str());
+            LOG_ERROR("LayoutManager", "  ERROR: Failed to get region %s for ImageWidget", imageConfig.region.c_str());
         }
     }
 
@@ -232,10 +237,10 @@ void LayoutManager::createAndAssignWidgets() {
 
         // Using template-based type name instead of hardcoded string
         String typeName = WidgetTypeRegistry::getTypeName<LayoutWidget>();
-        Serial.printf("  %s widget created as global layout renderer\n", typeName.c_str());
+        LOG_DEBUG("LayoutManager", "  %s widget created as global layout renderer", typeName.c_str());
     }
 
-    Serial.println("Widget and region creation complete");
+    LOG_INFO("LayoutManager", "Widget and region creation complete");
 }
 
 LayoutRegion* LayoutManager::getRegionById(const String& regionId) const {
@@ -250,12 +255,12 @@ LayoutRegion* LayoutManager::getOrCreateRegion(const String& regionId) {
     // Check if region already exists (should exist from calculateLayoutRegions)
     LayoutRegion* existingRegion = getRegionById(regionId);
     if (existingRegion) {
-        Serial.printf("Using existing region %s\n", regionId.c_str());
+        LOG_DEBUG("LayoutManager", "Using existing region %s", regionId.c_str());
         return existingRegion;
     }
 
     // If region doesn't exist, create it (fallback for dynamic regions)
-    Serial.printf("Region %s not found in config, creating dynamically\n", regionId.c_str());
+    LOG_WARN("LayoutManager", "Region %s not found in config, creating dynamically", regionId.c_str());
 
     // Get region layout info from config
     RegionConfig regionConfig = configManager->getRegionConfig(regionId);
@@ -268,10 +273,10 @@ LayoutRegion* LayoutManager::getOrCreateRegion(const String& regionId) {
         regionConfig.height
     );
 
-    Serial.printf("Created dynamic region %s: %dx%d at (%d,%d)\n",
-                 regionId.c_str(),
-                 regionConfig.width, regionConfig.height,
-                 regionConfig.x, regionConfig.y);
+    LOG_INFO("LayoutManager", "Created dynamic region %s: %dx%d at (%d,%d)",
+             regionId.c_str(),
+             regionConfig.width, regionConfig.height,
+             regionConfig.x, regionConfig.y);
 
     // Store region in map for easy access by ID
     LayoutRegion* regionPtr = region.get();
@@ -313,7 +318,7 @@ LayoutRegion* LayoutManager::getRegion(size_t index) const {
 // Legacy region getters removed - LayoutManager is now fully data-driven
 
 void LayoutManager::initializeComponents() {
-    Serial.println("Initializing components...");
+    LOG_INFO("LayoutManager", "Initializing components...");
 
     displayManager->initialize();
 
@@ -330,7 +335,7 @@ void LayoutManager::initializeComponents() {
         layoutWidget->begin();
     }
 
-    Serial.println("All components and widgets initialized");
+    LOG_INFO("LayoutManager", "All components and widgets initialized");
 }
 
 void LayoutManager::loop() {
@@ -345,24 +350,24 @@ void LayoutManager::performInitialSetup() {
     // Check configuration before attempting WiFi connection
     if (!configManager->isConfigured()) {
         String errorMsg = configManager->getConfigurationError();
-        Serial.printf("Configuration error: %s\n", errorMsg.c_str());
+        LOG_ERROR("LayoutManager", "Configuration error: %s", errorMsg.c_str());
 
         // Note: Error display would be handled by widgets in their respective regions
-        Serial.println("Configuration error - widgets should handle error display");
+        LOG_ERROR("LayoutManager", "Configuration error - widgets should handle error display");
         return;
     }
 
     if (wifiManager->connect()) {
-        Serial.println("Initial setup complete");
+        LOG_INFO("LayoutManager", "Initial setup complete");
         displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
 
-        Serial.println("WiFi connected, syncing time and weather...");
+        LOG_INFO("LayoutManager", "WiFi connected, syncing time and weather...");
         // Note: Widget syncing will be handled by the widgets themselves during render
 
         // Render all regions (each region will render its own widgets)
         renderAllRegions();
     } else {
-        Serial.println("WiFi connection failed - widgets should handle error display");
+        LOG_ERROR("LayoutManager", "WiFi connection failed - widgets should handle error display");
         renderAllRegions();
     }
 
@@ -374,10 +379,10 @@ void LayoutManager::handleScheduledUpdate() {
     unsigned long currentTime = millis();
 
     if (currentTime - lastUpdate >= getShortestUpdateInterval()) {
-        Serial.println("Starting scheduled update...");
+        LOG_INFO("LayoutManager", "Starting scheduled update...");
 
         if (ensureConnectivity()) {
-            Serial.println("Connectivity ensured - triggering region updates");
+            LOG_INFO("LayoutManager", "Connectivity ensured - triggering region updates");
 
             // Force refresh of weather and time data during scheduled update
             // Note: Widget syncing will be handled by the widgets themselves during render
@@ -404,7 +409,7 @@ void LayoutManager::handleWidgetUpdates() {
 
     // Only update display if regions actually need updating
     if (needsUpdate) {
-        Serial.println("Rendering updated regions...");
+        LOG_DEBUG("LayoutManager", "Rendering updated regions...");
         renderChangedRegions(); // Use partial update for better performance
     }
 }
@@ -413,22 +418,22 @@ bool LayoutManager::ensureConnectivity() {
     // First check if configuration is valid
     if (!configManager->isConfigured()) {
         String errorMsg = configManager->getConfigurationError();
-        Serial.printf("Configuration error during connectivity check: %s\n", errorMsg.c_str());
+        LOG_ERROR("LayoutManager", "Configuration error during connectivity check: %s", errorMsg.c_str());
 
         // Note: Error display would be handled by widgets in their respective regions
-        Serial.println("Configuration error - widgets should handle error display");
+        LOG_ERROR("LayoutManager", "Configuration error - widgets should handle error display");
         return false;
     }
 
     if (!wifiManager->isConnected()) {
-        Serial.println("WiFi disconnected, attempting reconnection...");
+        LOG_WARN("LayoutManager", "WiFi disconnected, attempting reconnection...");
         displayManager->showStatus("Reconnecting WiFi...");
 
         if (!wifiManager->connect()) {
-            Serial.println("WiFi reconnection failed - widgets should handle error display");
+            LOG_ERROR("LayoutManager", "WiFi reconnection failed - widgets should handle error display");
             return false;
         } else {
-            Serial.println("WiFi reconnected - widgets can now sync data");
+            LOG_INFO("LayoutManager", "WiFi reconnected - widgets can now sync data");
         }
     }
     return true;
@@ -437,11 +442,11 @@ bool LayoutManager::ensureConnectivity() {
 
 
 void LayoutManager::renderAllRegions() {
-    Serial.println("Rendering all regions...");
+    LOG_DEBUG("LayoutManager", "Rendering all regions...");
 
     // Use compositor if available, otherwise fall back to direct rendering
     if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
-        Serial.println("Using compositor for rendering all regions");
+        LOG_DEBUG("LayoutManager", "Using compositor for rendering all regions");
 
         // Clear compositor surface
         compositor->clear();
@@ -452,18 +457,18 @@ void LayoutManager::renderAllRegions() {
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region) {
-                Serial.printf("Rendering region at (%d,%d) %dx%d with %d widgets to compositor\n",
-                             region->getX(), region->getY(),
-                             region->getWidth(), region->getHeight(),
-                             region->getWidgetCount());
+                LOG_DEBUG("LayoutManager", "Rendering region at (%d,%d) %dx%d with %d widgets to compositor",
+                          region->getX(), region->getY(),
+                          region->getWidth(), region->getHeight(),
+                          region->getWidgetCount());
 
                 // Clear region on compositor with error checking
-                Serial.printf("Clearing region (%d,%d) %dx%d on compositor\n",
-                             region->getX(), region->getY(),
-                             region->getWidth(), region->getHeight());
+                LOG_DEBUG("LayoutManager", "Clearing region (%d,%d) %dx%d on compositor",
+                          region->getX(), region->getY(),
+                          region->getWidth(), region->getHeight());
                 if (!compositor->clearRegion(*region)) {
-                    Serial.printf("Failed to clear region on compositor, error: %s\n",
-                                 compositor->getErrorString(compositor->getLastError()));
+                    LOG_ERROR("LayoutManager", "Failed to clear region on compositor, error: %s",
+                              compositor->getErrorString(compositor->getLastError()));
                     compositorRenderingSuccessful = false;
                     continue;
                 }
@@ -475,8 +480,8 @@ void LayoutManager::renderAllRegions() {
                         try {
                             widget->renderToCompositor(*compositor, *region);
                         } catch (...) {
-                            Serial.printf("Widget rendering failed for widget %zu in region (%d,%d)\n",
-                                         i, region->getX(), region->getY());
+                            LOG_ERROR("LayoutManager", "Widget rendering failed for widget %zu in region (%d,%d)",
+                                      i, region->getX(), region->getY());
                             // Continue with other widgets
                         }
                     }
@@ -487,8 +492,8 @@ void LayoutManager::renderAllRegions() {
                     try {
                         region->getLegacyWidget()->renderToCompositor(*compositor, *region);
                     } catch (...) {
-                        Serial.printf("Legacy widget rendering failed in region (%d,%d)\n",
-                                     region->getX(), region->getY());
+                        LOG_ERROR("LayoutManager", "Legacy widget rendering failed in region (%d,%d)",
+                                  region->getX(), region->getY());
                         // Continue with other regions
                     }
                 }
@@ -504,7 +509,7 @@ void LayoutManager::renderAllRegions() {
                 LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
                 layoutWidget->renderToCompositor(*compositor, fullDisplayRegion);
             } catch (...) {
-                Serial.println("Layout widget rendering failed");
+                LOG_ERROR("LayoutManager", "Layout widget rendering failed");
                 compositorRenderingSuccessful = false;
             }
         }
@@ -512,17 +517,17 @@ void LayoutManager::renderAllRegions() {
         // Display compositor content to Inkplate with error handling
         if (compositorRenderingSuccessful) {
             if (!displayManager->renderWithCompositor()) {
-                Serial.println("Compositor display failed, falling back to direct rendering");
+                LOG_WARN("LayoutManager", "Compositor display failed, falling back to direct rendering");
                 compositor->setFallbackMode(true);
                 renderAllRegions(); // Retry with direct rendering
                 return;
             }
         } else {
-            Serial.println("Compositor rendering had errors, attempting recovery");
+            LOG_WARN("LayoutManager", "Compositor rendering had errors, attempting recovery");
             if (compositor->recoverFromError()) {
-                Serial.println("Compositor recovery successful");
+                LOG_INFO("LayoutManager", "Compositor recovery successful");
             } else {
-                Serial.println("Compositor recovery failed, enabling fallback mode");
+                LOG_ERROR("LayoutManager", "Compositor recovery failed, enabling fallback mode");
                 compositor->setFallbackMode(true);
                 renderAllRegions(); // Retry with direct rendering
                 return;
@@ -530,9 +535,9 @@ void LayoutManager::renderAllRegions() {
         }
     } else {
         if (compositor && compositor->isInFallbackMode()) {
-            Serial.println("Using direct rendering (compositor in fallback mode)");
+            LOG_DEBUG("LayoutManager", "Using direct rendering (compositor in fallback mode)");
         } else {
-            Serial.println("Using direct rendering (compositor not available)");
+            LOG_DEBUG("LayoutManager", "Using direct rendering (compositor not available)");
         }
 
         // Fall back to direct rendering with error isolation
@@ -541,27 +546,27 @@ void LayoutManager::renderAllRegions() {
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region) {
-                Serial.printf("Region at (%d,%d) %dx%d has %d widgets, needsUpdate: %s\n",
-                             region->getX(), region->getY(),
-                             region->getWidth(), region->getHeight(),
-                             region->getWidgetCount(),
-                             region->needsUpdate() ? "true" : "false");
+                LOG_DEBUG("LayoutManager", "Region at (%d,%d) %dx%d has %d widgets, needsUpdate: %s",
+                          region->getX(), region->getY(),
+                          region->getWidth(), region->getHeight(),
+                          region->getWidgetCount(),
+                          region->needsUpdate() ? "true" : "false");
 
                 if (region->needsUpdate()) {
-                    Serial.printf("  Region needs update - rendering\n");
+                    LOG_DEBUG("LayoutManager", "  Region needs update - rendering");
 
                     try {
                         // Let the region render all its widgets with error isolation
                         region->render();
-                        Serial.printf("  Region rendering complete\n");
+                        LOG_DEBUG("LayoutManager", "  Region rendering complete");
                     } catch (...) {
-                        Serial.printf("  ERROR: Region rendering failed for region (%d,%d)\n",
-                                     region->getX(), region->getY());
+                        LOG_ERROR("LayoutManager", "  ERROR: Region rendering failed for region (%d,%d)",
+                                  region->getX(), region->getY());
                         directRenderingSuccessful = false;
                         // Continue with other regions
                     }
                 } else {
-                    Serial.printf("  Region does not need update - skipping\n");
+                    LOG_DEBUG("LayoutManager", "  Region does not need update - skipping");
                 }
             }
         }
@@ -572,7 +577,7 @@ void LayoutManager::renderAllRegions() {
                 LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
                 layoutWidget->render(fullDisplayRegion);
             } catch (...) {
-                Serial.println("ERROR: Layout widget rendering failed in direct mode");
+                LOG_ERROR("LayoutManager", "ERROR: Layout widget rendering failed in direct mode");
                 directRenderingSuccessful = false;
             }
         }
@@ -581,24 +586,24 @@ void LayoutManager::renderAllRegions() {
         try {
             displayManager->update();
             if (directRenderingSuccessful) {
-                Serial.println("Direct rendering completed successfully");
+                LOG_DEBUG("LayoutManager", "Direct rendering completed successfully");
             } else {
-                Serial.println("Direct rendering completed with some errors");
+                LOG_WARN("LayoutManager", "Direct rendering completed with some errors");
             }
         } catch (...) {
-            Serial.println("ERROR: Display update failed in direct rendering mode");
+            LOG_ERROR("LayoutManager", "ERROR: Display update failed in direct rendering mode");
         }
     }
 
-    Serial.println("Region rendering complete");
+    LOG_DEBUG("LayoutManager", "Region rendering complete");
 }
 
 void LayoutManager::renderChangedRegions() {
-    Serial.println("Rendering changed regions...");
+    LOG_DEBUG("LayoutManager", "Rendering changed regions...");
 
     // Use compositor if available for efficient partial updates
     if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
-        Serial.println("Using compositor for partial region rendering");
+        LOG_DEBUG("LayoutManager", "Using compositor for partial region rendering");
 
         bool hasChanges = false;
         bool compositorRenderingSuccessful = true;
@@ -607,15 +612,15 @@ void LayoutManager::renderChangedRegions() {
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region && region->needsUpdate()) {
-                Serial.printf("Rendering changed region at (%d,%d) %dx%d with %d widgets to compositor\n",
-                             region->getX(), region->getY(),
-                             region->getWidth(), region->getHeight(),
-                             region->getWidgetCount());
+                LOG_DEBUG("LayoutManager", "Rendering changed region at (%d,%d) %dx%d with %d widgets to compositor",
+                          region->getX(), region->getY(),
+                          region->getWidth(), region->getHeight(),
+                          region->getWidgetCount());
 
                 // Clear region on compositor with error checking
                 if (!compositor->clearRegion(*region)) {
-                    Serial.printf("Failed to clear changed region on compositor, error: %s\n",
-                                 compositor->getErrorString(compositor->getLastError()));
+                    LOG_ERROR("LayoutManager", "Failed to clear changed region on compositor, error: %s",
+                              compositor->getErrorString(compositor->getLastError()));
                     compositorRenderingSuccessful = false;
                     continue;
                 }
@@ -627,8 +632,8 @@ void LayoutManager::renderChangedRegions() {
                         try {
                             widget->renderToCompositor(*compositor, *region);
                         } catch (...) {
-                            Serial.printf("Widget rendering failed for widget %zu in changed region (%d,%d)\n",
-                                         i, region->getX(), region->getY());
+                            LOG_ERROR("LayoutManager", "Widget rendering failed for widget %zu in changed region (%d,%d)",
+                                      i, region->getX(), region->getY());
                             // Continue with other widgets
                         }
                     }
@@ -639,8 +644,8 @@ void LayoutManager::renderChangedRegions() {
                     try {
                         region->getLegacyWidget()->renderToCompositor(*compositor, *region);
                     } catch (...) {
-                        Serial.printf("Legacy widget rendering failed in changed region (%d,%d)\n",
-                                     region->getX(), region->getY());
+                        LOG_ERROR("LayoutManager", "Legacy widget rendering failed in changed region (%d,%d)",
+                                  region->getX(), region->getY());
                         // Continue with other regions
                     }
                 }
@@ -653,30 +658,30 @@ void LayoutManager::renderChangedRegions() {
 
         // Only update display if there were actual changes and no critical errors
         if (hasChanges && compositorRenderingSuccessful) {
-            Serial.println("Changes detected, performing partial display update");
+            LOG_DEBUG("LayoutManager", "Changes detected, performing partial display update");
             if (!displayManager->partialRenderWithCompositor()) {
-                Serial.println("Partial compositor display failed, falling back to full direct rendering");
+                LOG_WARN("LayoutManager", "Partial compositor display failed, falling back to full direct rendering");
                 compositor->setFallbackMode(true);
                 renderAllRegions(); // Fall back to full direct rendering
                 return;
             }
         } else if (hasChanges && !compositorRenderingSuccessful) {
-            Serial.println("Compositor rendering had errors during partial update, attempting recovery");
+            LOG_WARN("LayoutManager", "Compositor rendering had errors during partial update, attempting recovery");
             if (compositor->recoverFromError()) {
-                Serial.println("Compositor recovery successful, retrying partial update");
+                LOG_INFO("LayoutManager", "Compositor recovery successful, retrying partial update");
                 renderChangedRegions(); // Retry
                 return;
             } else {
-                Serial.println("Compositor recovery failed, falling back to direct rendering");
+                LOG_ERROR("LayoutManager", "Compositor recovery failed, falling back to direct rendering");
                 compositor->setFallbackMode(true);
                 renderAllRegions(); // Fall back to full direct rendering
                 return;
             }
         } else {
-            Serial.println("No changes detected, skipping display update");
+            LOG_DEBUG("LayoutManager", "No changes detected, skipping display update");
         }
     } else {
-        Serial.println("Using direct rendering for changed regions (compositor not available)");
+        LOG_DEBUG("LayoutManager", "Using direct rendering for changed regions (compositor not available)");
 
         // Fall back to direct rendering with smart partial update
         bool hasChanges = false;
@@ -684,10 +689,10 @@ void LayoutManager::renderChangedRegions() {
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region && region->needsUpdate()) {
-                Serial.printf("Rendering changed region at (%d,%d) %dx%d with %d widgets\n",
-                             region->getX(), region->getY(),
-                             region->getWidth(), region->getHeight(),
-                             region->getWidgetCount());
+                LOG_DEBUG("LayoutManager", "Rendering changed region at (%d,%d) %dx%d with %d widgets",
+                          region->getX(), region->getY(),
+                          region->getWidth(), region->getHeight(),
+                          region->getWidgetCount());
 
                 // Let the region render all its widgets
                 region->render();
@@ -697,14 +702,14 @@ void LayoutManager::renderChangedRegions() {
 
         // Only update display if there were actual changes
         if (hasChanges) {
-            Serial.println("Changes detected, performing smart partial update");
+            LOG_DEBUG("LayoutManager", "Changes detected, performing smart partial update");
             displayManager->smartPartialUpdate();
         } else {
-            Serial.println("No changes detected, skipping display update");
+            LOG_DEBUG("LayoutManager", "No changes detected, skipping display update");
         }
     }
 
-    Serial.println("Changed region rendering complete");
+    LOG_DEBUG("LayoutManager", "Changed region rendering complete");
 }
 
 void LayoutManager::clearRegion(const LayoutRegion& region) {
@@ -715,10 +720,10 @@ void LayoutManager::clearRegion(const LayoutRegion& region) {
 // drawLayoutBorders() method removed - layout visualization now handled by LayoutWidget
 
 void LayoutManager::forceRefresh() {
-    Serial.println("Manual layout refresh triggered by WAKE button");
+    LOG_INFO("LayoutManager", "Manual layout refresh triggered by WAKE button");
 
     if (ensureConnectivity()) {
-        Serial.println("Connectivity ensured - forcing region refresh");
+        LOG_INFO("LayoutManager", "Connectivity ensured - forcing region refresh");
 
         // Mark all regions as dirty to force refresh
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
@@ -734,12 +739,12 @@ void LayoutManager::forceRefresh() {
         // Update the last update time to reset the scheduled timer
         lastUpdate = millis();
     } else {
-        Serial.println("Cannot refresh layout - no connectivity");
+        LOG_ERROR("LayoutManager", "Cannot refresh layout - no connectivity");
     }
 }
 
 void LayoutManager::forceTimeAndBatteryUpdate() {
-    Serial.println("Forcing time and battery widget updates with compositor partial rendering");
+    LOG_INFO("LayoutManager", "Forcing time and battery widget updates with compositor partial rendering");
 
     bool hasTimeOrBatteryUpdates = false;
 
@@ -759,9 +764,9 @@ void LayoutManager::forceTimeAndBatteryUpdate() {
                     if (widgetType == WidgetType::DATE_TIME || widgetType == WidgetType::BATTERY) {
                         regionHasTimeOrBattery = true;
                         hasTimeOrBatteryUpdates = true;
-                        Serial.printf("Found %s widget in region (%d,%d)\n",
-                                     widgetType == WidgetType::DATE_TIME ? "time" : "battery",
-                                     region->getX(), region->getY());
+                        LOG_DEBUG("LayoutManager", "Found %s widget in region (%d,%d)",
+                                  widgetType == WidgetType::DATE_TIME ? "time" : "battery",
+                                  region->getX(), region->getY());
                         break;
                     }
                 }
@@ -774,34 +779,34 @@ void LayoutManager::forceTimeAndBatteryUpdate() {
                 if (widgetType == WidgetType::DATE_TIME || widgetType == WidgetType::BATTERY) {
                     regionHasTimeOrBattery = true;
                     hasTimeOrBatteryUpdates = true;
-                    Serial.printf("Found legacy %s widget in region (%d,%d)\n",
-                                 widgetType == WidgetType::DATE_TIME ? "time" : "battery",
-                                 region->getX(), region->getY());
+                    LOG_DEBUG("LayoutManager", "Found legacy %s widget in region (%d,%d)",
+                              widgetType == WidgetType::DATE_TIME ? "time" : "battery",
+                              region->getX(), region->getY());
                 }
             }
 
             // Mark region as dirty if it contains time or battery widgets
             if (regionHasTimeOrBattery) {
                 region->markDirty();
-                Serial.printf("Marked region (%d,%d) as dirty for time/battery update\n",
-                             region->getX(), region->getY());
+                LOG_DEBUG("LayoutManager", "Marked region (%d,%d) as dirty for time/battery update",
+                          region->getX(), region->getY());
             }
         }
     }
 
     if (hasTimeOrBatteryUpdates) {
-        Serial.println("Time/battery widgets found - performing partial compositor update");
+        LOG_INFO("LayoutManager", "Time/battery widgets found - performing partial compositor update");
 
         // Use compositor partial rendering for efficient updates
         if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
-            Serial.println("Using compositor for partial time/battery update");
+            LOG_DEBUG("LayoutManager", "Using compositor for partial time/battery update");
             renderChangedRegions(); // This will use compositor partial rendering
         } else {
-            Serial.println("Compositor not available - using direct partial rendering for time/battery update");
+            LOG_DEBUG("LayoutManager", "Compositor not available - using direct partial rendering for time/battery update");
             renderChangedRegions(); // This will fall back to direct rendering
         }
     } else {
-        Serial.println("No time or battery widgets found - skipping update");
+        LOG_DEBUG("LayoutManager", "No time or battery widgets found - skipping update");
     }
 }
 
@@ -852,19 +857,19 @@ unsigned long LayoutManager::getDeepSleepThreshold() const {
 }
 
 void LayoutManager::demonstrateCompositorIntegration() {
-    Serial.println("=== COMPOSITOR INTEGRATION DEMONSTRATION ===");
+    LOG_INFO("LayoutManager", "=== COMPOSITOR INTEGRATION DEMONSTRATION ===");
 
     if (!compositor || !compositor->isInitialized()) {
-        Serial.println("Compositor not available - demonstration skipped");
+        LOG_WARN("LayoutManager", "Compositor not available - demonstration skipped");
         return;
     }
 
     if (!displayManager) {
-        Serial.println("DisplayManager not available - demonstration skipped");
+        LOG_WARN("LayoutManager", "DisplayManager not available - demonstration skipped");
         return;
     }
 
-    Serial.println("Drawing test pattern on compositor...");
+    LOG_INFO("LayoutManager", "Drawing test pattern on compositor...");
 
     // Clear compositor surface
     compositor->clear();
@@ -892,54 +897,54 @@ void LayoutManager::demonstrateCompositorIntegration() {
     compositor->drawRect(450, 300, 150, 150, 0);   // Widget 3 border
     compositor->fillRect(452, 302, 146, 146, 96);  // Darker background
 
-    Serial.println("Test pattern drawn on compositor surface");
+    LOG_INFO("LayoutManager", "Test pattern drawn on compositor surface");
 
     // Demonstrate full rendering with compositor
-    Serial.println("Performing full render with compositor...");
+    LOG_INFO("LayoutManager", "Performing full render with compositor...");
     displayManager->renderWithCompositor();
 
     delay(3000); // Show the pattern for 3 seconds
 
     // Demonstrate partial update
-    Serial.println("Modifying small area for partial update demonstration...");
+    LOG_INFO("LayoutManager", "Modifying small area for partial update demonstration...");
 
     // Modify a small area
     compositor->fillRect(600, 300, 100, 100, 32); // Dark area
     compositor->drawRect(600, 300, 100, 100, 0);  // Border
 
-    Serial.println("Performing partial render with compositor...");
+    LOG_INFO("LayoutManager", "Performing partial render with compositor...");
     displayManager->partialRenderWithCompositor();
 
     delay(2000);
 
     // Clear and return to normal operation
-    Serial.println("Clearing compositor and returning to normal operation...");
+    LOG_INFO("LayoutManager", "Clearing compositor and returning to normal operation...");
     compositor->clear();
     displayManager->renderWithCompositor();
 
-    Serial.println("=== COMPOSITOR DEMONSTRATION COMPLETE ===");
+    LOG_INFO("LayoutManager", "=== COMPOSITOR DEMONSTRATION COMPLETE ===");
 }
 
 bool LayoutManager::assignWidgetToRegion(Widget* widget, const String& regionId) {
     if (!widget) {
-        Serial.printf("ERROR: Cannot assign null widget to region '%s'\n", regionId.c_str());
+        LOG_ERROR("LayoutManager", "ERROR: Cannot assign null widget to region '%s'", regionId.c_str());
         return false;
     }
 
     LayoutRegion* region = getRegionById(regionId);
     if (!region) {
-        Serial.printf("ERROR: Region '%s' not found for widget assignment\n", regionId.c_str());
+        LOG_ERROR("LayoutManager", "ERROR: Region '%s' not found for widget assignment", regionId.c_str());
         return false;
     }
 
     // Add widget to region
     size_t index = region->addWidget(widget);
     if (index == SIZE_MAX) {
-        Serial.printf("ERROR: Failed to add widget to region '%s'\n", regionId.c_str());
+        LOG_ERROR("LayoutManager", "ERROR: Failed to add widget to region '%s'", regionId.c_str());
         return false;
     }
 
-    Serial.printf("Successfully assigned widget to region '%s' (index %d)\n", regionId.c_str(), index);
+    LOG_DEBUG("LayoutManager", "Successfully assigned widget to region '%s' (index %d)", regionId.c_str(), index);
 
     // Initialize the widget if it hasn't been initialized yet
     widget->begin();
@@ -952,13 +957,13 @@ bool LayoutManager::assignWidgetToRegion(Widget* widget, const String& regionId)
 
 bool LayoutManager::removeWidgetFromRegion(Widget* widget, const String& regionId) {
     if (!widget) {
-        Serial.printf("ERROR: Cannot remove null widget from region '%s'\n", regionId.c_str());
+        LOG_ERROR("LayoutManager", "ERROR: Cannot remove null widget from region '%s'", regionId.c_str());
         return false;
     }
 
     LayoutRegion* region = getRegionById(regionId);
     if (!region) {
-        Serial.printf("ERROR: Region '%s' not found for widget removal\n", regionId.c_str());
+        LOG_ERROR("LayoutManager", "ERROR: Region '%s' not found for widget removal", regionId.c_str());
         return false;
     }
 
@@ -966,19 +971,19 @@ bool LayoutManager::removeWidgetFromRegion(Widget* widget, const String& regionI
     for (size_t i = 0; i < region->getWidgetCount(); ++i) {
         if (region->getWidget(i) == widget) {
             if (region->removeWidget(i)) {
-                Serial.printf("Successfully removed widget from region '%s' (was at index %d)\n", regionId.c_str(), i);
+                LOG_DEBUG("LayoutManager", "Successfully removed widget from region '%s' (was at index %d)", regionId.c_str(), i);
 
                 // Mark region as dirty to trigger re-render
                 region->markDirty();
 
                 return true;
             } else {
-                Serial.printf("ERROR: Failed to remove widget from region '%s' at index %d\n", regionId.c_str(), i);
+                LOG_ERROR("LayoutManager", "ERROR: Failed to remove widget from region '%s' at index %d", regionId.c_str(), i);
                 return false;
             }
         }
     }
 
-    Serial.printf("ERROR: Widget not found in region '%s'\n", regionId.c_str());
+    LOG_ERROR("LayoutManager", "ERROR: Widget not found in region '%s'", regionId.c_str());
     return false;
 }

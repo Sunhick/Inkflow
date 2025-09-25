@@ -1,4 +1,5 @@
 #include "ImageWidget.h"
+#include "../../core/Logger.h"
 #include "../../core/Compositor.h"
 #include "../../managers/ConfigManager.h"
 
@@ -6,7 +7,7 @@ ImageWidget::ImageWidget(Inkplate& display, const char* imageUrl)
     : Widget(display), imageUrl(imageUrl), consecutiveFailures(0), lastImageUpdate(0) {}
 
 void ImageWidget::begin() {
-    Serial.println("Initializing image widget...");
+    LOG_INFO("ImageWidget", "Initializing image widget...");
     consecutiveFailures = 0;
     lastImageUpdate = 0;
 }
@@ -17,18 +18,18 @@ bool ImageWidget::shouldUpdate() {
 }
 
 void ImageWidget::render(const LayoutRegion& region) {
-    Serial.printf("=== IMAGE WIDGET RENDER START ===\n");
-    Serial.printf("Region: %dx%d at (%d,%d)\n", region.getWidth(), region.getHeight(), region.getX(), region.getY());
-    Serial.printf("Image URL: %s\n", imageUrl);
-    Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+    LOG_DEBUG("ImageWidget", "=== IMAGE WIDGET RENDER START ===");
+    LOG_DEBUG("ImageWidget", "Region: %dx%d at (%d,%d)", region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("ImageWidget", "Image URL: %s", imageUrl);
+    LOG_DEBUG("ImageWidget", "WiFi Status: %s", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
 
     // Attempt to fetch and display image
     if (fetchAndDisplay(region)) {
         consecutiveFailures = 0;
-        Serial.println("Image widget rendered successfully");
+        LOG_INFO("ImageWidget", "Image widget rendered successfully");
     } else {
         consecutiveFailures++;
-        Serial.printf("Image widget render failed (attempt %d)\n", consecutiveFailures);
+        LOG_ERROR("ImageWidget", "Image widget render failed (attempt %d)", consecutiveFailures);
 
         // Show error in the image region
         String errorDetails = "URL: ";
@@ -40,14 +41,14 @@ void ImageWidget::render(const LayoutRegion& region) {
     }
 
     lastImageUpdate = millis();
-    Serial.printf("=== IMAGE WIDGET RENDER END ===\n");
+    LOG_DEBUG("ImageWidget", "=== IMAGE WIDGET RENDER END ===");
 }
 
 void ImageWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    Serial.printf("=== IMAGE WIDGET RENDER TO COMPOSITOR START ===\n");
-    Serial.printf("Region: %dx%d at (%d,%d)\n", region.getWidth(), region.getHeight(), region.getX(), region.getY());
-    Serial.printf("Image URL: %s\n", imageUrl);
-    Serial.printf("WiFi Status: %s\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+    LOG_DEBUG("ImageWidget", "=== IMAGE WIDGET RENDER TO COMPOSITOR START ===");
+    LOG_DEBUG("ImageWidget", "Region: %dx%d at (%d,%d)", region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("ImageWidget", "Image URL: %s", imageUrl);
+    LOG_DEBUG("ImageWidget", "WiFi Status: %s", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
 
     // Clear the region on compositor before drawing
     clearRegionOnCompositor(compositor, region);
@@ -55,10 +56,10 @@ void ImageWidget::renderToCompositor(Compositor& compositor, const LayoutRegion&
     // Attempt to fetch and display image to compositor
     if (fetchAndDisplayToCompositor(compositor, region)) {
         consecutiveFailures = 0;
-        Serial.println("Image widget rendered to compositor successfully");
+        LOG_INFO("ImageWidget", "Image widget rendered to compositor successfully");
     } else {
         consecutiveFailures++;
-        Serial.printf("Image widget render to compositor failed (attempt %d)\n", consecutiveFailures);
+        LOG_ERROR("ImageWidget", "Image widget render to compositor failed (attempt %d)", consecutiveFailures);
 
         // Show error in the image region on compositor
         String errorDetails = "URL: ";
@@ -70,16 +71,16 @@ void ImageWidget::renderToCompositor(Compositor& compositor, const LayoutRegion&
     }
 
     lastImageUpdate = millis();
-    Serial.printf("=== IMAGE WIDGET RENDER TO COMPOSITOR END ===\n");
+    LOG_DEBUG("ImageWidget", "=== IMAGE WIDGET RENDER TO COMPOSITOR END ===");
 }
 
 bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected, cannot fetch image");
+        LOG_WARN("ImageWidget", "WiFi not connected, cannot fetch image");
         return false;
     }
 
-    Serial.printf("Fetching image from: %s\n", imageUrl);
+    LOG_DEBUG("ImageWidget", "Fetching image from: %s", imageUrl);
 
     // DON'T clear the entire display - only draw in our region!
     // The LayoutManager already cleared our specific region before calling render()
@@ -88,21 +89,21 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
     bool success = display.drawImage(imageUrl, region.getX(), region.getY(), false, false);
 
     if (success) {
-        Serial.println("Image downloaded and displayed successfully at correct position");
+        LOG_INFO("ImageWidget", "Image downloaded and displayed successfully at correct position");
         return true;
     }
 
     // Try with dithering at the correct position
     success = display.drawImage(imageUrl, region.getX(), region.getY(), true, false);
     if (success) {
-        Serial.println("Image displayed with dithering at correct position");
+        LOG_INFO("ImageWidget", "Image displayed with dithering at correct position");
         return true;
     }
 
     // Only if all attempts fail, run diagnostics
-    Serial.println("All image drawing attempts failed - running diagnostics");
-    Serial.printf("WiFi IP: %s\n", WiFi.localIP().toString().c_str());
-    Serial.printf("WiFi Signal: %d dBm\n", WiFi.RSSI());
+    LOG_ERROR("ImageWidget", "All image drawing attempts failed - running diagnostics");
+    LOG_DEBUG("ImageWidget", "WiFi IP: %s", WiFi.localIP().toString().c_str());
+    LOG_DEBUG("ImageWidget", "WiFi Signal: %d dBm", WiFi.RSSI());
 
     // Test HTTP connection to see what the issue might be
     HTTPClient http;
@@ -110,15 +111,15 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
     http.setTimeout(10000);
 
     int httpCode = http.GET();
-    Serial.printf("HTTP Response Code: %d\n", httpCode);
+    LOG_DEBUG("ImageWidget", "HTTP Response Code: %d", httpCode);
 
     if (httpCode == HTTP_CODE_OK) {
         int contentLength = http.getSize();
         String contentType = http.header("Content-Type");
-        Serial.printf("Content-Length: %d bytes\n", contentLength);
-        Serial.printf("Content-Type: %s\n", contentType.c_str());
+        LOG_DEBUG("ImageWidget", "Content-Length: %d bytes", contentLength);
+        LOG_DEBUG("ImageWidget", "Content-Type: %s", contentType.c_str());
     } else {
-        Serial.printf("HTTP error: %d - %s\n", httpCode, http.errorToString(httpCode).c_str());
+        LOG_ERROR("ImageWidget", "HTTP error: %d - %s", httpCode, http.errorToString(httpCode).c_str());
     }
 
     http.end();
@@ -126,10 +127,10 @@ bool ImageWidget::fetchAndDisplay(const LayoutRegion& region) {
 }
 
 void ImageWidget::showErrorInRegion(const LayoutRegion& region, const char* title, const char* message, const char* details) {
-    Serial.printf("=== SHOWING ERROR IN IMAGE REGION ===\n");
-    Serial.printf("Title: %s\n", title);
-    Serial.printf("Message: %s\n", message);
-    Serial.printf("Details: %s\n", details ? details : "None");
+    LOG_DEBUG("ImageWidget", "=== SHOWING ERROR IN IMAGE REGION ===");
+    LOG_DEBUG("ImageWidget", "Title: %s", title);
+    LOG_DEBUG("ImageWidget", "Message: %s", message);
+    LOG_DEBUG("ImageWidget", "Details: %s", details ? details : "None");
 
     // Clear the region with a light gray background to make it visible
     display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 6);
@@ -176,13 +177,13 @@ void ImageWidget::showErrorInRegion(const LayoutRegion& region, const char* titl
         }
     }
 
-    Serial.printf("Error display complete\n");
+    LOG_DEBUG("ImageWidget", "Error display complete");
 }
 
 
 
 void ImageWidget::showImagePlaceholder(const LayoutRegion& region, const char* title, const char* subtitle) {
-    Serial.printf("Showing image placeholder: %s - %s\n", title, subtitle);
+    LOG_DEBUG("ImageWidget", "Showing image placeholder: %s - %s", title, subtitle);
 
     // Clear with light gray background
     display.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 6);
@@ -217,7 +218,7 @@ void ImageWidget::showImagePlaceholder(const LayoutRegion& region, const char* t
 }
 
 void ImageWidget::showDiagnosticsInRegion(const LayoutRegion& region, const char* ipAddress, int signalStrength) {
-    Serial.println("Showing diagnostics in image region");
+    LOG_DEBUG("ImageWidget", "Showing diagnostics in image region");
 
     // Clear the region
     clearRegion(region);
@@ -256,11 +257,11 @@ void ImageWidget::showDiagnosticsInRegion(const LayoutRegion& region, const char
 
 bool ImageWidget::fetchAndDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected, cannot fetch image");
+        LOG_WARN("ImageWidget", "WiFi not connected, cannot fetch image");
         return false;
     }
 
-    Serial.printf("Fetching image from: %s for compositor\n", imageUrl);
+    LOG_DEBUG("ImageWidget", "Fetching image from: %s for compositor", imageUrl);
 
     // For compositor rendering, we need to simulate image display
     // Since the Inkplate library's drawImage method works directly with the display,
@@ -274,15 +275,15 @@ bool ImageWidget::fetchAndDisplayToCompositor(Compositor& compositor, const Layo
     // For now, we'll create a placeholder that shows the image would be there
     showImagePlaceholderToCompositor(compositor, region, "IMAGE", "Loading...");
 
-    Serial.println("Image placeholder rendered to compositor");
+    LOG_DEBUG("ImageWidget", "Image placeholder rendered to compositor");
     return true;
 }
 
 void ImageWidget::showErrorInRegionToCompositor(Compositor& compositor, const LayoutRegion& region, const char* title, const char* message, const char* details) {
-    Serial.printf("=== SHOWING ERROR IN IMAGE REGION TO COMPOSITOR ===\n");
-    Serial.printf("Title: %s\n", title);
-    Serial.printf("Message: %s\n", message);
-    Serial.printf("Details: %s\n", details ? details : "None");
+    LOG_DEBUG("ImageWidget", "=== SHOWING ERROR IN IMAGE REGION TO COMPOSITOR ===");
+    LOG_DEBUG("ImageWidget", "Title: %s", title);
+    LOG_DEBUG("ImageWidget", "Message: %s", message);
+    LOG_DEBUG("ImageWidget", "Details: %s", details ? details : "None");
 
     // Clear the region with a light gray background (color 200 for 8-bit grayscale)
     compositor.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 200);
@@ -319,11 +320,11 @@ void ImageWidget::showErrorInRegionToCompositor(Compositor& compositor, const La
         }
     }
 
-    Serial.printf("Error display to compositor complete\n");
+    LOG_DEBUG("ImageWidget", "Error display to compositor complete");
 }
 
 void ImageWidget::showImagePlaceholderToCompositor(Compositor& compositor, const LayoutRegion& region, const char* title, const char* subtitle) {
-    Serial.printf("Showing image placeholder to compositor: %s - %s\n", title, subtitle ? subtitle : "");
+    LOG_DEBUG("ImageWidget", "Showing image placeholder to compositor: %s - %s", title, subtitle ? subtitle : "");
 
     // Clear with light gray background (color 200 for 8-bit grayscale)
     compositor.fillRect(region.getX(), region.getY(), region.getWidth(), region.getHeight(), 200);
@@ -356,7 +357,7 @@ void ImageWidget::showImagePlaceholderToCompositor(Compositor& compositor, const
 }
 
 void ImageWidget::showDiagnosticsInRegionToCompositor(Compositor& compositor, const LayoutRegion& region, const char* ipAddress, int signalStrength) {
-    Serial.println("Showing diagnostics in image region to compositor");
+    LOG_DEBUG("ImageWidget", "Showing diagnostics in image region to compositor");
 
     // Clear the region on compositor
     clearRegionOnCompositor(compositor, region);

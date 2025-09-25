@@ -1,4 +1,5 @@
 #include "LayoutRegion.h"
+#include "Logger.h"
 #include "Widget.h"
 #include "../widgets/image/ImageWidget.h"
 #include "../widgets/battery/BatteryWidget.h"
@@ -185,7 +186,7 @@ bool LayoutRegion::intersects(int otherX, int otherY, int otherWidth, int otherH
     return true;
 }
 void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String& regionId, Inkplate& display) {
-    Serial.printf("LayoutRegion: Creating widgets for region '%s'\n", regionId.c_str());
+    LOG_DEBUG("LayoutRegion", "Creating widgets for region '%s'", regionId.c_str());
 
     // Clear existing widgets first
     clearWidgets();
@@ -199,7 +200,7 @@ void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String
                                                      weatherConfig.city,
                                                      weatherConfig.units);
             addWidget(widget);
-            Serial.printf("  Created WeatherWidget for region '%s'\n", regionId.c_str());
+            LOG_DEBUG("LayoutRegion", "  Created WeatherWidget for region '%s'", regionId.c_str());
         }
     }
 
@@ -208,7 +209,7 @@ void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String
         if (nameConfig.region == regionId) {
             NameWidget* widget = new NameWidget(display, nameConfig.familyName);
             addWidget(widget);
-            Serial.printf("  Created NameWidget for region '%s'\n", regionId.c_str());
+            LOG_DEBUG("LayoutRegion", "  Created NameWidget for region '%s'", regionId.c_str());
         }
     }
 
@@ -217,7 +218,7 @@ void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String
         if (dateTimeConfig.region == regionId) {
             TimeWidget* widget = new TimeWidget(display, dateTimeConfig.timeUpdateMs);
             addWidget(widget);
-            Serial.printf("  Created TimeWidget for region '%s'\n", regionId.c_str());
+            LOG_DEBUG("LayoutRegion", "  Created TimeWidget for region '%s'", regionId.c_str());
         }
     }
 
@@ -226,7 +227,7 @@ void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String
         if (batteryConfig.region == regionId) {
             BatteryWidget* widget = new BatteryWidget(display, batteryConfig.batteryUpdateMs);
             addWidget(widget);
-            Serial.printf("  Created BatteryWidget for region '%s'\n", regionId.c_str());
+            LOG_DEBUG("LayoutRegion", "  Created BatteryWidget for region '%s'", regionId.c_str());
         }
     }
 
@@ -235,9 +236,9 @@ void LayoutRegion::createWidgetsFromConfig(const AppConfig& config, const String
         if (imageConfig.region == regionId) {
             ImageWidget* widget = new ImageWidget(display, config.serverURL.c_str());
             addWidget(widget);
-            Serial.printf("  Created ImageWidget for region '%s'\n", regionId.c_str());
+            LOG_DEBUG("LayoutRegion", "  Created ImageWidget for region '%s'", regionId.c_str());
         }
     }
 
-    Serial.printf("LayoutRegion '%s': Created %d widgets\n", regionId.c_str(), getWidgetCount());
+    LOG_INFO("LayoutRegion", "Region '%s': Created %d widgets", regionId.c_str(), getWidgetCount());
 }

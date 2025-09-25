@@ -1,4 +1,5 @@
 #include "BatteryWidget.h"
+#include "../../core/Logger.h"
 #include "../../core/Compositor.h"
 #include "../../managers/ConfigManager.h"
 
@@ -7,11 +8,11 @@ BatteryWidget::BatteryWidget(Inkplate& display)
 
 BatteryWidget::BatteryWidget(Inkplate& display, unsigned long updateInterval)
     : Widget(display), lastBatteryUpdate(0), batteryUpdateInterval(updateInterval) {
-    Serial.printf("BatteryWidget created with update interval: %lu ms (%lu seconds)\n", updateInterval, updateInterval / 1000);
+    LOG_INFO("BatteryWidget", "Created with update interval: %lu ms (%lu seconds)", updateInterval, updateInterval / 1000);
 }
 
 void BatteryWidget::begin() {
-    Serial.println("Initializing battery widget...");
+    LOG_INFO("BatteryWidget", "Initializing battery widget...");
     lastBatteryUpdate = 0;
 }
 
@@ -21,39 +22,39 @@ bool BatteryWidget::shouldUpdate() {
 }
 
 void BatteryWidget::render(const LayoutRegion& region) {
-    Serial.printf("BatteryWidget::render() called - region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("BatteryWidget", "render() called - region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the region before drawing to prevent text overwriting
     clearRegion(region);
 
     // Draw battery content within the region
-    Serial.println("About to call drawBatteryIndicator()...");
+    LOG_DEBUG("BatteryWidget", "About to call drawBatteryIndicator()...");
     drawBatteryIndicator(region);
-    Serial.println("drawBatteryIndicator() completed");
+    LOG_DEBUG("BatteryWidget", "drawBatteryIndicator() completed");
 
     lastBatteryUpdate = millis();
-    Serial.printf("BatteryWidget::render() completed - lastBatteryUpdate set to %lu\n", lastBatteryUpdate);
+    LOG_DEBUG("BatteryWidget", "render() completed - lastBatteryUpdate set to %lu", lastBatteryUpdate);
 }
 
 void BatteryWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    Serial.printf("BatteryWidget::renderToCompositor() called - region: %dx%d at (%d,%d)\n",
-                  region.getWidth(), region.getHeight(), region.getX(), region.getY());
+    LOG_DEBUG("BatteryWidget", "renderToCompositor() called - region: %dx%d at (%d,%d)",
+              region.getWidth(), region.getHeight(), region.getX(), region.getY());
 
     // Clear the region on compositor before drawing to prevent text overwriting
     clearRegionOnCompositor(compositor, region);
 
     // Draw battery content to compositor within the region
-    Serial.println("About to call drawBatteryIndicatorToCompositor()...");
+    LOG_DEBUG("BatteryWidget", "About to call drawBatteryIndicatorToCompositor()...");
     drawBatteryIndicatorToCompositor(compositor, region);
-    Serial.println("drawBatteryIndicatorToCompositor() completed");
+    LOG_DEBUG("BatteryWidget", "drawBatteryIndicatorToCompositor() completed");
 
     lastBatteryUpdate = millis();
-    Serial.printf("BatteryWidget::renderToCompositor() completed - lastBatteryUpdate set to %lu\n", lastBatteryUpdate);
+    LOG_DEBUG("BatteryWidget", "renderToCompositor() completed - lastBatteryUpdate set to %lu", lastBatteryUpdate);
 }
 
 void BatteryWidget::forceUpdate() {
-    Serial.println("Force updating battery widget...");
+    LOG_INFO("BatteryWidget", "Force updating battery widget...");
     lastBatteryUpdate = 0; // Force next shouldUpdate() to return true
 }
 
@@ -79,16 +80,16 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     int percentage = getBatteryPercentage();
     float voltage = getBatteryVoltage();
 
-    Serial.printf("BatteryWidget::drawBatteryIndicator() - Drawing battery: %d%% (%.2fV)\n", percentage, voltage);
-    Serial.printf("BatteryWidget region bounds: (%d,%d) %dx%d\n",
-                  region.getX(), region.getY(), region.getWidth(), region.getHeight());
+    LOG_DEBUG("BatteryWidget", "drawBatteryIndicator() - Drawing battery: %d%% (%.2fV)", percentage, voltage);
+    LOG_DEBUG("BatteryWidget", "region bounds: (%d,%d) %dx%d",
+              region.getX(), region.getY(), region.getWidth(), region.getHeight());
 
     // Calculate positions within the region
     int margin = 10;
     int labelX = region.getX() + margin;
     int labelY = region.getY() + margin;
 
-    Serial.printf("BatteryWidget drawing at labelX=%d, labelY=%d\n", labelX, labelY);
+    LOG_DEBUG("BatteryWidget", "drawing at labelX=%d, labelY=%d", labelX, labelY);
 
     // Draw "BATTERY" label
     display.setCursor(labelX, labelY + 20);
@@ -96,7 +97,7 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.print("BATTERY");
-    Serial.println("Drew BATTERY label");
+    LOG_DEBUG("BatteryWidget", "Drew BATTERY label");
 
     // Draw percentage text (smaller size)
     display.setCursor(labelX, labelY + 60);
@@ -104,7 +105,7 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.printf("%d%%", percentage);
-    Serial.printf("Drew percentage: %d%%\n", percentage);
+    LOG_DEBUG("BatteryWidget", "Drew percentage: %d%%", percentage);
 
     // Draw battery icon (smaller size)
     int iconWidth = 40;
@@ -113,7 +114,7 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     int iconY = labelY + 100;
 
     drawBatteryIcon(iconX, iconY, percentage, iconWidth, iconHeight);
-    Serial.println("Drew battery icon");
+    LOG_DEBUG("BatteryWidget", "Drew battery icon");
 
     // Draw voltage info (adjusted position for smaller icon)
     display.setCursor(labelX, labelY + 130);
@@ -121,7 +122,7 @@ void BatteryWidget::drawBatteryIndicator(const LayoutRegion& region) {
     display.setTextColor(0); // Black text
     display.setTextWrap(false);
     display.printf("%.2fV", voltage);
-    Serial.printf("Drew voltage: %.2fV\n", voltage);
+    LOG_DEBUG("BatteryWidget", "Drew voltage: %.2fV", voltage);
 }
 
 void BatteryWidget::drawBatteryIcon(int x, int y, int percentage, int iconWidth, int iconHeight) {
@@ -143,7 +144,7 @@ void BatteryWidget::drawBatteryIndicatorToCompositor(Compositor& compositor, con
     int percentage = getBatteryPercentage();
     float voltage = getBatteryVoltage();
 
-    Serial.printf("BatteryWidget::drawBatteryIndicatorToCompositor() - Drawing battery: %d%% (%.2fV)\n", percentage, voltage);
+    LOG_DEBUG("BatteryWidget", "drawBatteryIndicatorToCompositor() - Drawing battery: %d%% (%.2fV)", percentage, voltage);
 
     // Calculate positions within the region
     int margin = 10;
@@ -152,11 +153,11 @@ void BatteryWidget::drawBatteryIndicatorToCompositor(Compositor& compositor, con
 
     // Draw "BATTERY" label area (simplified as a rectangle)
     compositor.fillRect(labelX, labelY + 15, 80, 20, 0); // Black rectangle for label
-    Serial.println("Drew BATTERY label area to compositor");
+    LOG_DEBUG("BatteryWidget", "Drew BATTERY label area to compositor");
 
     // Draw percentage area (larger rectangle)
     compositor.fillRect(labelX, labelY + 50, 60, 30, 0); // Black rectangle for percentage
-    Serial.printf("Drew percentage area to compositor: %d%%\n", percentage);
+    LOG_DEBUG("BatteryWidget", "Drew percentage area to compositor: %d%%", percentage);
 
     // Draw battery icon to compositor
     int iconWidth = 40;
@@ -165,11 +166,11 @@ void BatteryWidget::drawBatteryIndicatorToCompositor(Compositor& compositor, con
     int iconY = labelY + 100;
 
     drawBatteryIconToCompositor(compositor, iconX, iconY, percentage, iconWidth, iconHeight);
-    Serial.println("Drew battery icon to compositor");
+    LOG_DEBUG("BatteryWidget", "Drew battery icon to compositor");
 
     // Draw voltage info area
     compositor.fillRect(labelX, labelY + 125, 50, 15, 0); // Black rectangle for voltage
-    Serial.printf("Drew voltage area to compositor: %.2fV\n", voltage);
+    LOG_DEBUG("BatteryWidget", "Drew voltage area to compositor: %.2fV", voltage);
 }
 
 void BatteryWidget::drawBatteryIconToCompositor(Compositor& compositor, int x, int y, int percentage, int iconWidth, int iconHeight) {

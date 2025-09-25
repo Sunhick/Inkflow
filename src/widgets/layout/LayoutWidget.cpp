@@ -1,4 +1,5 @@
 #include "LayoutWidget.h"
+#include "../../core/Logger.h"
 #include "../../core/Compositor.h"
 #include "../../managers/ConfigManager.h"
 
@@ -27,33 +28,33 @@ void LayoutWidget::render(const LayoutRegion& region) {
     // Layout widget renders layout elements across the entire display
     // The region parameter is ignored since we draw global layout elements
 
-    Serial.printf("LayoutWidget::render() called - showBorders: %s, regions: %d\n",
-                  showRegionBorders ? "true" : "false",
-                  allRegions ? allRegions->size() : 0);
+    LOG_DEBUG("LayoutWidget", "render() called - showBorders: %s, regions: %d",
+              showRegionBorders ? "true" : "false",
+              allRegions ? allRegions->size() : 0);
 
     if (!allRegions) {
-        Serial.println("LayoutWidget: No regions available to draw");
+        LOG_DEBUG("LayoutWidget", "No regions available to draw");
         return; // No regions to draw
     }
 
     // Draw borders for all regions if enabled
     if (showRegionBorders) {
-        Serial.printf("LayoutWidget: Drawing borders for %d regions\n", allRegions->size());
+        LOG_DEBUG("LayoutWidget", "Drawing borders for %d regions", allRegions->size());
         for (const auto& regionPtr : *allRegions) {
             if (regionPtr) {
-                Serial.printf("Drawing border for region at (%d,%d) %dx%d\n",
-                             regionPtr->getX(), regionPtr->getY(),
-                             regionPtr->getWidth(), regionPtr->getHeight());
+                LOG_DEBUG("LayoutWidget", "Drawing border for region at (%d,%d) %dx%d",
+                          regionPtr->getX(), regionPtr->getY(),
+                          regionPtr->getWidth(), regionPtr->getHeight());
                 drawRegionBorder(*regionPtr);
             }
         }
     } else {
-        Serial.println("LayoutWidget: Region borders disabled");
+        LOG_DEBUG("LayoutWidget", "Region borders disabled");
     }
 
     // Draw separators between regions if enabled
     if (showSeparators) {
-        Serial.println("LayoutWidget: Drawing separators");
+        LOG_DEBUG("LayoutWidget", "Drawing separators");
         drawSeparators();
     }
 }
@@ -70,8 +71,8 @@ void LayoutWidget::drawRegionBorder(const LayoutRegion& region) {
     int w = region.getWidth();
     int h = region.getHeight();
 
-    Serial.printf("Drawing border: x=%d, y=%d, w=%d, h=%d, color=%d, thickness=%d\n",
-                  x, y, w, h, borderColor, borderThickness);
+    LOG_DEBUG("LayoutWidget", "Drawing border: x=%d, y=%d, w=%d, h=%d, color=%d, thickness=%d",
+              x, y, w, h, borderColor, borderThickness);
 
     // Draw border with specified thickness
     for (int t = 0; t < borderThickness; t++) {

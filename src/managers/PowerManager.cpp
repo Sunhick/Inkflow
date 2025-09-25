@@ -1,4 +1,5 @@
 #include "PowerManager.h"
+#include "../core/Logger.h"
 #include <WiFi.h>
 
 void PowerManager::enableDeepSleep(unsigned long sleepTimeMs) {
@@ -15,7 +16,7 @@ void PowerManager::enableWakeOnTimer(unsigned long timeMs) {
 }
 
 void PowerManager::enterDeepSleep() {
-    Serial.println("Entering deep sleep...");
+    LOG_INFO("PowerManager", "Entering deep sleep...");
     Serial.flush();
 
     // Disable WiFi and Bluetooth to save power
@@ -28,6 +29,7 @@ void PowerManager::enterDeepSleep() {
 }
 
 void PowerManager::configureLowPowerMode() {
+    LOG_INFO("PowerManager", "Configuring low power mode - reducing CPU to 80MHz");
     // Reduce CPU frequency when not actively processing
     setCpuFrequencyMhz(80); // Down from 240MHz
 
