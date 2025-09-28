@@ -14,7 +14,7 @@ std::unique_ptr<T> make_unique_helper(Args&&... args) {
 }
 
 LayoutManager::LayoutManager()
-    : display(INKPLATE_3BIT), lastUpdate(0), layoutWidget(nullptr), compositor(nullptr) {
+    : display(INKPLATE_3BIT), lastUpdate(0), layoutWidget(nullptr), compositor(nullptr), debugModeEnabled(false) {
 
     // Initialize config manager
     configManager = new ConfigManager();
@@ -55,6 +55,9 @@ void LayoutManager::begin() {
 
     const AppConfig& config = configManager->getConfig();
 
+    // Enable debug mode if configured
+    debugModeEnabled = config.showDebugOnScreen;
+
     // Debug: Check widget counts in config
     LOG_DEBUG("LayoutManager", "Config loaded - Widget counts: weather=%d, name=%d, dateTime=%d, battery=%d, image=%d, layout=%d",
               config.weatherWidgets.size(), config.nameWidgets.size(), config.dateTimeWidgets.size(),
@@ -65,6 +68,9 @@ void LayoutManager::begin() {
 
     // Create display manager
     displayManager = new DisplayManager(display);
+
+    // Enable debug mode if configured
+    displayManager->enableDebugMode(debugModeEnabled);
 
     // Initialize and integrate compositor with display manager
     if (compositor && compositor->initialize()) {
@@ -339,60 +345,165 @@ void LayoutManager::initializeComponents() {
 }
 
 void LayoutManager::loop() {
-    wifiManager->checkConnection();
-    handleScheduledUpdate();
-    handleWidgetUpdates();
+    // In deep sleep mode, most work is done in setup()
+    // This loop only handles immediate updates and prepares for sleep
+
+    // Check for immediate widget updates (like time ticking)
+    handleImmediateUpdates();
+
+    // Check if we should enter deep sleep
+    checkDeepSleepConditions();
 }
 
 void LayoutManager::performInitialSetup() {
-    displayManager->showStatus("Initializing...");
+    // Clear screen at startup to remove any previous status messages
+    if (!debugModeEnabled) {
+        displayManager->clear();
+    }
+
+    if (debugModeEnabled) {
+        displayManager->showStatus("Initializing...");
+    }
 
     // Check configuration before attempting WiFi connection
     if (!configManager->isConfigured()) {
         String errorMsg = configManager->getConfigurationError();
         LOG_ERROR("LayoutManager", "Configuration error: %s", errorMsg.c_str());
-
-        // Note: Error display would be handled by widgets in their respective regions
         LOG_ERROR("LayoutManager", "Configuration error - widgets should handle error display");
         return;
     }
 
-    if (wifiManager->connect()) {
-        LOG_INFO("LayoutManager", "Initial setup complete");
-        displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
-
-        LOG_INFO("LayoutManager", "WiFi connected, syncing time and weather...");
-        // Note: Widget syncing will be handled by the widgets themselves during render
-
-        // Render all regions (each region will render its own widgets)
-        renderAllRegions();
-    } else {
-        LOG_ERROR("LayoutManager", "WiFi connection failed - widgets should handle error display");
-        renderAllRegions();
-    }
+    // Perform all updates in setup for deep sleep optimization
+    performScheduledUpdates();
 
     lastUpdate = millis();
 }
 
-void LayoutManager::handleScheduledUpdate() {
-    // Automatic updates every 24 hours + manual refresh via WAKE button
-    unsigned long currentTime = millis();
+void LayoutManager::performScheduledUpdates() {
+    LOG_INFO("LayoutManager", "Performing scheduled updates in setup...");
 
-    if (currentTime - lastUpdate >= getShortestUpdateInterval()) {
-        LOG_INFO("LayoutManager", "Starting scheduled update...");
+    if (debugModeEnabled) {
+        displayManager->showDebugMessage("Starting scheduled updates...");
+    }
 
-        if (ensureConnectivity()) {
-            LOG_INFO("LayoutManager", "Connectivity ensured - triggering region updates");
+    if (wifiManager->connect()) {
+        LOG_INFO("LayoutManager", "WiFi connected, performing full update");
 
-            // Force refresh of weather and time data during scheduled update
-            // Note: Widget syncing will be handled by the widgets themselves during render
-
-            // Render all regions (each region will handle its own widget updates)
-            renderAllRegions();
+        if (debugModeEnabled) {
+            displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
+            displayManager->showDebugMessage(("WiFi: " + wifiManager->getIPAddress()).c_str());
+        } else {
+            // Clear any previous status messages when not in debug mode
+            displayManager->clear();
         }
 
-        lastUpdate = currentTime;
+        // Force connectivity check and widget updates
+        if (ensureConnectivity()) {
+            LOG_INFO("LayoutManager", "Connectivity ensured - updating all widgets");
+
+            if (debugModeEnabled) {
+                displayManager->showDebugMessage("Updating widgets...");
+            }
+
+            // Force all widgets to update their data
+            forceWidgetDataUpdate();
+
+            // Render all regions with fresh data
+            renderAllRegions();
+
+            if (debugModeEnabled) {
+                displayManager->showDebugMessage("Update complete");
+            }
+        }
+    } else {
+        LOG_ERROR("LayoutManager", "WiFi connection failed - rendering with cached data");
+
+        if (debugModeEnabled) {
+            displayManager->showDebugMessage("WiFi failed - using cache");
+        }
+
+        // Clear any status messages and render widgets directly
+        if (!debugModeEnabled) {
+            displayManager->clear();
+        }
+
+        renderAllRegions();
     }
+}
+
+void LayoutManager::forceWidgetDataUpdate() {
+    LOG_INFO("LayoutManager", "Forcing widget data updates...");
+
+    // Update all widgets in all regions
+    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+        LayoutRegion* region = it->get();
+        if (region) {
+            // Force update for all widgets in this region
+            for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                Widget* widget = region->getWidget(i);
+                if (widget) {
+                    widget->forceUpdate(); // This will trigger data refresh
+                }
+            }
+
+            // Handle legacy widget if present
+            if (region->getLegacyWidget()) {
+                region->getLegacyWidget()->forceUpdate();
+            }
+        }
+    }
+}
+
+void LayoutManager::handleImmediateUpdates() {
+    // Handle only time-sensitive updates that can't wait for deep sleep cycle
+    bool needsImmediateRender = false;
+
+    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+        LayoutRegion* region = it->get();
+        if (region) {
+            for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                Widget* widget = region->getWidget(i);
+                if (widget && widget->needsImmediateUpdate()) {
+                    widget->update(); // Quick update for time-sensitive widgets
+                    needsImmediateRender = true;
+                }
+            }
+        }
+    }
+
+    if (needsImmediateRender) {
+        LOG_DEBUG("LayoutManager", "Performing immediate render for time-sensitive updates");
+        renderChangedRegions();
+    }
+}
+
+void LayoutManager::checkDeepSleepConditions() {
+    // This method determines if we should prepare for deep sleep
+    unsigned long currentTime = millis();
+    unsigned long timeSinceLastUpdate = currentTime - lastUpdate;
+
+    // Check if it's time for the next scheduled update
+    if (timeSinceLastUpdate >= getShortestUpdateInterval()) {
+        LOG_INFO("LayoutManager", "Time for next scheduled update - preparing for deep sleep wake");
+
+        if (debugModeEnabled) {
+            displayManager->showDebugMessage("Preparing for deep sleep...", true);
+        }
+
+        prepareForDeepSleep();
+    }
+}
+
+void LayoutManager::prepareForDeepSleep() {
+    LOG_INFO("LayoutManager", "Preparing system for deep sleep...");
+
+    // Ensure all pending operations are complete
+    displayManager->update();
+
+    // Save any necessary state
+    // (Most state is preserved in config or can be reconstructed)
+
+    LOG_INFO("LayoutManager", "System ready for deep sleep");
 }
 
 void LayoutManager::handleWidgetUpdates() {
@@ -427,7 +538,10 @@ bool LayoutManager::ensureConnectivity() {
 
     if (!wifiManager->isConnected()) {
         LOG_WARN("LayoutManager", "WiFi disconnected, attempting reconnection...");
-        displayManager->showStatus("Reconnecting WiFi...");
+
+        if (debugModeEnabled) {
+            displayManager->showStatus("Reconnecting WiFi...");
+        }
 
         if (!wifiManager->connect()) {
             LOG_ERROR("LayoutManager", "WiFi reconnection failed - widgets should handle error display");

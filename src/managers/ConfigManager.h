@@ -150,6 +150,9 @@ struct AppConfig {
     // Power Management Configuration
     bool enableDeepSleep;
     unsigned long deepSleepThresholdMs;
+
+    // Debug Configuration
+    bool showDebugOnScreen;
 };
 
 class ConfigManager {

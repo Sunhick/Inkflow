@@ -1,6 +1,8 @@
 #include "managers/LayoutManager.h"
 #include "managers/PowerManager.h"
 #include "core/Logger.h"
+#include <esp_sleep.h>
+#include <WiFi.h>
 
 LayoutManager layoutManager;
 
@@ -15,75 +17,96 @@ void setup() {
 
     LOG_INFO("Main", "=== INKPLATE IMAGE DISPLAY STARTING ===");
 
+    // Check wake reason to determine if this is a scheduled wake or button wake
+    esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+
+    switch(wakeup_reason) {
+        case ESP_SLEEP_WAKEUP_EXT0:
+            LOG_INFO("Main", "Wakeup caused by button press");
+            break;
+        case ESP_SLEEP_WAKEUP_TIMER:
+            LOG_INFO("Main", "Wakeup caused by timer (scheduled update)");
+            break;
+        default:
+            LOG_INFO("Main", "Initial boot or reset");
+            break;
+    }
+
     // Initialize WAKE button pins
-    // pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
-    // pinMode(34, INPUT_PULLUP);
-    // pinMode(39, INPUT_PULLUP);
+    pinMode(36, INPUT_PULLUP);
+    pinMode(34, INPUT_PULLUP);
+    pinMode(39, INPUT_PULLUP);
 
     LOG_INFO("Main", "Button pins initialized: 36, 34, 39");
 
+    // Initialize layout manager - this now does all the heavy lifting
     layoutManager.begin();
 
-    // Demonstrate compositor integration
-    LOG_INFO("Main", "Demonstrating compositor integration...");
-    layoutManager.demonstrateCompositorIntegration();
+    // Demonstrate compositor integration (only on initial boot)
+    if (wakeup_reason == ESP_SLEEP_WAKEUP_UNDEFINED) {
+        LOG_INFO("Main", "Demonstrating compositor integration...");
+        layoutManager.demonstrateCompositorIntegration();
+    }
 
-    // Force an immediate refresh to load the image
-    LOG_INFO("Main", "Waiting for WiFi connection...");
-    delay(5000); // Give more time for WiFi to connect
-    LOG_INFO("Main", "Forcing immediate refresh...");
-    layoutManager.forceRefresh();
-    LOG_INFO("Main", "Setup complete");
+    // Force refresh on button wake or do scheduled update on timer wake
+    if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
+        LOG_INFO("Main", "Button wake - forcing immediate refresh...");
+        layoutManager.forceRefresh();
+    } else {
+        LOG_INFO("Main", "Performing scheduled update...");
+        // The scheduled update is now handled in layoutManager.begin()
+    }
+
+    LOG_INFO("Main", "Setup complete - entering main loop");
 }
 
 void loop() {
+    // Handle button presses for manual refresh
+    handleWakeButton();
+
+    // Let layout manager handle immediate updates and sleep preparation
     layoutManager.loop();
 
-    // Track activity for deep sleep
-    static unsigned long lastActivity = millis();
-    static unsigned long cachedShortestInterval = 0;
-    static unsigned long lastConfigCheck = 0;
+    // Simplified deep sleep logic - most work now done in setup()
+    static unsigned long loopStartTime = millis();
+    static unsigned long cachedUpdateInterval = 0;
 
-    // Check if deep sleep is enabled and we should enter it
+    // Cache the update interval on first run
+    if (cachedUpdateInterval == 0) {
+        cachedUpdateInterval = layoutManager.getShortestUpdateInterval();
+        LOG_INFO("Main", "Cached update interval: %lu ms", cachedUpdateInterval);
+    }
+
+    // Check if we should enter deep sleep
     if (layoutManager.shouldEnterDeepSleep()) {
-        // Cache configuration values to avoid repeated calls
         unsigned long currentTime = millis();
-        if (cachedShortestInterval == 0 || currentTime - lastConfigCheck > 60000) { // Refresh cache every minute
-            cachedShortestInterval = layoutManager.getShortestUpdateInterval();
-            lastConfigCheck = currentTime;
-        }
+        unsigned long timeInLoop = currentTime - loopStartTime;
 
-        unsigned long sleepThreshold = layoutManager.getDeepSleepThreshold();
-
-        // If no updates needed for the threshold time, enter deep sleep
-        if (currentTime - lastActivity > sleepThreshold) {
+        // Give some time for immediate updates, then sleep
+        if (timeInLoop > 30000) { // 30 seconds max in active loop
             LOG_INFO("Main", "Entering deep sleep mode...");
-            LOG_INFO("Main", "Sleep threshold: %lu ms, shortest update interval: %lu ms", sleepThreshold, cachedShortestInterval);
+            LOG_INFO("Main", "Next wake in: %lu ms", cachedUpdateInterval);
 
-            // Setup wake sources using config values
+            // Setup wake sources
             int wakeButtonPin = layoutManager.getWakeButtonPin();
             PowerManager::enableWakeOnButton(wakeButtonPin);
-            PowerManager::enableWakeOnTimer(cachedShortestInterval); // Wake based on shortest update interval
+            PowerManager::enableWakeOnTimer(cachedUpdateInterval);
 
-            // Enter deep sleep
+            // Enter deep sleep - execution will resume in setup() on wake
             PowerManager::enterDeepSleep();
         }
     }
 
-    // Debug: Print status every 2 minutes (reduced spam)
+    // Minimal status logging (only every 5 minutes when not sleeping)
     static unsigned long lastStatusPrint = 0;
-    if (millis() - lastStatusPrint > 120000) { // 2 minutes instead of 30 seconds
-        LOG_INFO("Main", "=== STATUS CHECK ===");
-        LOG_INFO("Main", "WiFi Status: %s", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
-        if (WiFi.status() == WL_CONNECTED) {
-            LOG_INFO("Main", "IP Address: %s", WiFi.localIP().toString().c_str());
-            LOG_INFO("Main", "Signal Strength: %d dBm", WiFi.RSSI());
-        }
-        LOG_INFO("Main", "Free heap: %d bytes", ESP.getFreeHeap());
-        LOG_INFO("Main", "Uptime: %lu seconds", millis() / 1000);
+    if (millis() - lastStatusPrint > 300000) { // 5 minutes
+        LOG_INFO("Main", "Active mode - Free heap: %d bytes, Uptime: %lu seconds",
+                 ESP.getFreeHeap(), millis() / 1000);
         lastStatusPrint = millis();
-        lastActivity = millis(); // Reset activity timer
     }
+
+    // Small delay to prevent tight loop
+    delay(1000);
 }
 
 void handleWakeButton() {

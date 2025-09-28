@@ -20,6 +20,11 @@ public:
     void smartPartialUpdate(); // Optimized partial update for widget regions
     void setupSmoothText(int size, int color = 0); // Helper for smooth text rendering
 
+    // Debug message functionality
+    void showDebugMessage(const char* message, bool persistent = false);
+    void clearDebugArea();
+    void enableDebugMode(bool enable) { debugModeEnabled = enable; }
+
     // Compositor integration methods (with error handling)
     void setCompositor(Compositor* compositor);
     Compositor* getCompositor() const;
@@ -30,10 +35,18 @@ private:
     Inkplate &display;
     int preferredDisplayMode;
     Compositor* compositor; // Pointer to compositor for advanced rendering
+    bool debugModeEnabled;
+
+    // Debug message tracking
+    static const int MAX_DEBUG_LINES = 10;
+    String debugMessages[MAX_DEBUG_LINES];
+    int debugLineCount;
+    int debugStartY;
 
     void setTitle(const char* title);
     void setMessage(const char* message, int y = 40);
     void setSmallText(const char* text, int x, int y);
+    void renderDebugMessages();
 };
 
 #endif

@@ -71,14 +71,20 @@ private:
 
     // Configuration
     unsigned long lastUpdate;
+    bool debugModeEnabled;
 
     // Private methods
     void calculateLayoutRegions();
     void createAndAssignWidgets();
     void initializeComponents();
     void performInitialSetup();
-    void handleScheduledUpdate();
-    void handleWidgetUpdates();
+    void performScheduledUpdates(); // New: Perform all updates in setup for deep sleep
+    void forceWidgetDataUpdate(); // New: Force all widgets to update their data
+    void handleImmediateUpdates(); // New: Handle only time-sensitive updates
+    void checkDeepSleepConditions(); // New: Check if ready for deep sleep
+    void prepareForDeepSleep(); // New: Prepare system for deep sleep
+    void handleScheduledUpdate(); // Legacy method - may be removed
+    void handleWidgetUpdates(); // Legacy method - may be removed
     bool ensureConnectivity();
     void renderAllRegions();
     void renderChangedRegions(); // New method for partial updates

@@ -53,3 +53,13 @@ void Widget::renderToCompositor(Compositor& compositor, const LayoutRegion& regi
     // Mark the region as changed in the compositor
     compositor.markRegionChanged(region);
 }
+void Widget::forceUpdate() {
+    // Default implementation: mark widget as needing update
+    // Subclasses can override to force data refresh
+}
+
+void Widget::update() {
+    // Default implementation: check if update needed and render
+    // This is called for immediate updates in the main loop
+    // Subclasses can override for more efficient immediate updates
+}

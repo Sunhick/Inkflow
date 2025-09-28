@@ -2,7 +2,7 @@
 #include "../core/Logger.h"
 #include "../core/Compositor.h"
 
-DisplayManager::DisplayManager(Inkplate &display) : display(display), preferredDisplayMode(INKPLATE_3BIT), compositor(nullptr) {}
+DisplayManager::DisplayManager(Inkplate &display) : display(display), preferredDisplayMode(INKPLATE_3BIT), compositor(nullptr), debugModeEnabled(false), debugLineCount(0), debugStartY(700) {}
 
 void DisplayManager::initialize() {
     display.begin();
@@ -343,6 +343,70 @@ bool DisplayManager::partialRenderWithCompositor() {
         } catch (...) {
             LOG_FATAL("DisplayManager", "All partial rendering methods failed");
             return false;
+        }
+    }
+}
+void DisplayManager::showDebugMessage(const char* message, bool persistent) {
+    if (!debugModeEnabled) {
+        return; // Debug mode disabled
+    }
+
+    // Add message to debug buffer
+    if (debugLineCount < MAX_DEBUG_LINES) {
+        debugMessages[debugLineCount] = String(message);
+        debugLineCount++;
+    } else {
+        // Shift messages up and add new one at bottom
+        for (int i = 0; i < MAX_DEBUG_LINES - 1; i++) {
+            debugMessages[i] = debugMessages[i + 1];
+        }
+        debugMessages[MAX_DEBUG_LINES - 1] = String(message);
+    }
+
+    // Render debug messages if persistent or immediately
+    if (persistent) {
+        renderDebugMessages();
+        update();
+    }
+}
+
+void DisplayManager::clearDebugArea() {
+    if (!debugModeEnabled) {
+        return;
+    }
+
+    // Clear the debug area on screen
+    display.fillRect(0, debugStartY, display.width(), display.height() - debugStartY, 7); // White background
+
+    // Clear debug message buffer
+    debugLineCount = 0;
+    for (int i = 0; i < MAX_DEBUG_LINES; i++) {
+        debugMessages[i] = "";
+    }
+}
+
+void DisplayManager::renderDebugMessages() {
+    if (!debugModeEnabled || debugLineCount == 0) {
+        return;
+    }
+
+    // Clear debug area first
+    display.fillRect(0, debugStartY, display.width(), display.height() - debugStartY, 7); // White background
+
+    // Draw debug border
+    display.drawRect(0, debugStartY - 2, display.width(), display.height() - debugStartY + 2, 0); // Black border
+
+    // Set small font for debug messages
+    display.setTextSize(1);
+    display.setTextColor(0); // Black text
+
+    // Render each debug message
+    int y = debugStartY + 5;
+    for (int i = 0; i < debugLineCount && i < MAX_DEBUG_LINES; i++) {
+        if (debugMessages[i].length() > 0) {
+            display.setCursor(5, y);
+            display.print(debugMessages[i]);
+            y += 12; // Line spacing
         }
     }
 }

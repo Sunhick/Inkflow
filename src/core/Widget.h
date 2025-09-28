@@ -29,6 +29,11 @@ public:
     // Virtual method for layout change notifications
     virtual void onRegionChanged(const LayoutRegion& oldRegion, const LayoutRegion& newRegion) {}
 
+    // Deep sleep optimization methods
+    virtual void forceUpdate();
+    virtual bool needsImmediateUpdate() const { return false; } // Most widgets don't need immediate updates
+    virtual void update();
+
 protected:
     Inkplate& display;
 

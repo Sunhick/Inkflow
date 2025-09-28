@@ -188,6 +188,9 @@ bool ConfigManager::loadConfig() {
     config.enableDeepSleep = doc["Power"]["EnableDeepSleep"] | true;
     config.deepSleepThresholdMs = doc["Power"]["DeepSleepThresholdMs"] | 600000UL;
 
+    // Debug configuration
+    config.showDebugOnScreen = doc["Debug"]["ShowOnScreen"] | false;
+
     LOG_INFO("ConfigManager", "Configuration loaded successfully");
     LOG_INFO("ConfigManager", "WiFi SSID: %s", config.wifiSSID.c_str());
     LOG_INFO("ConfigManager", "Server URL: %s", config.serverURL.c_str());
@@ -272,6 +275,9 @@ bool ConfigManager::saveConfig() {
     doc["Power"]["EnableDeepSleep"] = config.enableDeepSleep;
     doc["Power"]["DeepSleepThresholdMs"] = config.deepSleepThresholdMs;
 
+    // Debug configuration
+    doc["Debug"]["ShowOnScreen"] = config.showDebugOnScreen;
+
     fs::File file = SPIFFS.open(CONFIG_FILE, "w");
     if (!file) {
         LOG_ERROR("ConfigManager", "Failed to create config file");
@@ -311,6 +317,8 @@ void ConfigManager::setDefaults() {
 
     config.enableDeepSleep = true;
     config.deepSleepThresholdMs = 600000UL; // 10 minutes
+
+    config.showDebugOnScreen = false;
 }
 bool ConfigManager::isConfigured() const {
     // Check if config file existed when loaded
