@@ -67,46 +67,27 @@ void loop() {
     // Let layout manager handle immediate updates and sleep preparation
     layoutManager.loop();
 
-    // Simplified deep sleep logic - most work now done in setup()
-    static unsigned long loopStartTime = millis();
-    static unsigned long cachedUpdateInterval = 0;
-
-    // Cache the update interval on first run
-    if (cachedUpdateInterval == 0) {
-        cachedUpdateInterval = layoutManager.getShortestUpdateInterval();
-        LOG_INFO("Main", "Cached update interval: %lu ms", cachedUpdateInterval);
-    }
-
-    // Check if we should enter deep sleep
+    // Enter deep sleep immediately — all work is already done in setup()
+    // No reason to burn 30 seconds of active time doing nothing
     if (layoutManager.shouldEnterDeepSleep()) {
-        unsigned long currentTime = millis();
-        unsigned long timeInLoop = currentTime - loopStartTime;
+        unsigned long cachedUpdateInterval = layoutManager.getShortestUpdateInterval();
 
-        // Give some time for immediate updates, then sleep
-        if (timeInLoop > 30000) { // 30 seconds max in active loop
-            LOG_INFO("Main", "Entering deep sleep mode...");
-            LOG_INFO("Main", "Next wake in: %lu ms", cachedUpdateInterval);
+        LOG_INFO("Main", "Entering deep sleep mode...");
+        LOG_INFO("Main", "Next wake in: %lu ms", cachedUpdateInterval);
 
-            // Setup wake sources
-            int wakeButtonPin = layoutManager.getWakeButtonPin();
-            PowerManager::enableWakeOnButton(wakeButtonPin);
-            PowerManager::enableWakeOnTimer(cachedUpdateInterval);
+        // Setup wake sources
+        int wakeButtonPin = layoutManager.getWakeButtonPin();
+        PowerManager::enableWakeOnButton(wakeButtonPin);
+        PowerManager::enableWakeOnTimer(cachedUpdateInterval);
 
-            // Enter deep sleep - execution will resume in setup() on wake
-            PowerManager::enterDeepSleep();
-        }
+        // Enter deep sleep - execution will resume in setup() on wake
+        PowerManager::enterDeepSleep();
     }
 
-    // Minimal status logging (only every 5 minutes when not sleeping)
-    static unsigned long lastStatusPrint = 0;
-    if (millis() - lastStatusPrint > 300000) { // 5 minutes
-        LOG_INFO("Main", "Active mode - Free heap: %d bytes, Uptime: %lu seconds",
-                 ESP.getFreeHeap(), millis() / 1000);
-        lastStatusPrint = millis();
-    }
-
-    // Small delay to prevent tight loop
-    delay(1000);
+    // If deep sleep is disabled, use light sleep between loop iterations
+    // instead of active delay() to save ~30mA
+    esp_sleep_enable_timer_wakeup(1000000); // 1 second
+    esp_light_sleep_start();
 }
 
 void handleWakeButton() {
