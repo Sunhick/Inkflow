@@ -38,8 +38,10 @@ void PowerManager::configureLowPowerMode() {
 }
 
 void PowerManager::disableUnusedPeripherals() {
-    // Disable ADC, DAC, and other unused peripherals
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_OFF);
+    // Keep RTC_PERIPH on — required for ext0 wakeup (button pin)
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+    // Keep RTC_SLOW_MEM on — required for RTC_DATA_ATTR variables across deep sleep
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_ON);
+    // RTC_FAST_MEM not needed (no RTC_FAST_ATTR usage)
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
 }
