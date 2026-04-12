@@ -386,82 +386,79 @@ void LayoutManager::performScheduledUpdates() {
         displayManager->showDebugMessage("Starting scheduled updates...");
     }
 
-    // Boost CPU for WiFi operations (WiFi needs minimum 80MHz, 160MHz for throughput)
-    setCpuFrequencyMhz(160);
-    LOG_INFO("LayoutManager", "CPU boosted to 160MHz for WiFi operations");
+    // Force all widgets to mark themselves for update
+    forceWidgetDataUpdate();
 
-    if (wifiManager->connect()) {
-        LOG_INFO("LayoutManager", "WiFi connected, fetching all network data first");
-
-        if (debugModeEnabled) {
-            displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
-            displayManager->showDebugMessage(("WiFi: " + wifiManager->getIPAddress()).c_str());
+    // Check if ANY widget actually needs network access this cycle
+    bool anyWidgetNeedsNetwork = false;
+    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+        LayoutRegion* region = it->get();
+        if (region) {
+            for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                Widget* widget = region->getWidget(i);
+                if (widget && widget->needsNetworkFetch()) {
+                    anyWidgetNeedsNetwork = true;
+                    break;
+                }
+            }
+            if (!anyWidgetNeedsNetwork && region->getLegacyWidget() && region->getLegacyWidget()->needsNetworkFetch()) {
+                anyWidgetNeedsNetwork = true;
+            }
+            if (anyWidgetNeedsNetwork) break;
         }
+    }
 
-        // Phase 1: Fetch all network data while WiFi is active
-        if (ensureConnectivity()) {
-            LOG_INFO("LayoutManager", "Connectivity ensured - fetching widget data over network");
+    if (anyWidgetNeedsNetwork) {
+        // Boost CPU for WiFi operations (WiFi needs minimum 80MHz, 160MHz for throughput)
+        setCpuFrequencyMhz(160);
+        LOG_INFO("LayoutManager", "Widgets need network — CPU boosted to 160MHz");
+
+        if (wifiManager->connect()) {
+            LOG_INFO("LayoutManager", "WiFi connected, fetching network data");
 
             if (debugModeEnabled) {
-                displayManager->showDebugMessage("Fetching data...");
+                displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
             }
 
-            // Force all widgets to mark themselves for update
-            forceWidgetDataUpdate();
-
-            // Pre-fetch network data for all widgets that need it
-            for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
-                LayoutRegion* region = it->get();
-                if (region) {
-                    for (size_t i = 0; i < region->getWidgetCount(); ++i) {
-                        Widget* widget = region->getWidget(i);
-                        if (widget && widget->needsNetworkFetch()) {
-                            widget->fetchData();
+            if (ensureConnectivity()) {
+                // Fetch network data only for widgets that need it
+                for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+                    LayoutRegion* region = it->get();
+                    if (region) {
+                        for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                            Widget* widget = region->getWidget(i);
+                            if (widget && widget->needsNetworkFetch()) {
+                                widget->fetchData();
+                            }
                         }
-                    }
-                    if (region->getLegacyWidget() && region->getLegacyWidget()->needsNetworkFetch()) {
-                        region->getLegacyWidget()->fetchData();
+                        if (region->getLegacyWidget() && region->getLegacyWidget()->needsNetworkFetch()) {
+                            region->getLegacyWidget()->fetchData();
+                        }
                     }
                 }
             }
-        }
 
-        // Phase 2: Disconnect WiFi and drop CPU back to 80MHz
-        LOG_INFO("LayoutManager", "Network fetches complete - disconnecting WiFi before rendering");
-        WiFi.disconnect(true);
-        WiFi.mode(WIFI_OFF);
-        setCpuFrequencyMhz(80);
-        LOG_INFO("LayoutManager", "CPU reduced to 80MHz for rendering");
-
-        if (debugModeEnabled) {
-            displayManager->showDebugMessage("WiFi off - rendering...");
+            // Disconnect WiFi and drop CPU immediately
+            WiFi.disconnect(true);
+            WiFi.mode(WIFI_OFF);
         } else {
-            displayManager->clear();
+            LOG_ERROR("LayoutManager", "WiFi connection failed — rendering with cached data");
         }
 
-        // Phase 3: Render all regions with cached data (WiFi is now off)
-        LOG_INFO("LayoutManager", "Rendering all regions with fetched data");
-        renderAllRegions();
-
-        if (debugModeEnabled) {
-            displayManager->showDebugMessage("Update complete");
-        }
-    } else {
-        LOG_ERROR("LayoutManager", "WiFi connection failed - rendering with cached data");
-
-        // Drop CPU back to 80MHz since WiFi failed
         setCpuFrequencyMhz(80);
+    } else {
+        LOG_INFO("LayoutManager", "No widgets need network — skipping WiFi entirely");
+    }
 
-        if (debugModeEnabled) {
-            displayManager->showDebugMessage("WiFi failed - using cache");
-        }
+    // Render all regions (WiFi is off, CPU at 80MHz)
+    if (!debugModeEnabled) {
+        displayManager->clear();
+    }
 
-        // Clear any status messages and render widgets directly
-        if (!debugModeEnabled) {
-            displayManager->clear();
-        }
+    renderAllRegions();
 
-        renderAllRegions();
+    if (debugModeEnabled) {
+        displayManager->showDebugMessage("Update complete");
     }
 }
 

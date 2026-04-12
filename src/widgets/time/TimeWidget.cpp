@@ -17,8 +17,8 @@ const char* ntpServers[] = {
 RTC_DATA_ATTR static unsigned long rtcLastNTPSyncEpoch = 0;
 RTC_DATA_ATTR static bool rtcHasEverSynced = false;
 
-// Only re-sync NTP every 6 hours (ESP32 RTC keeps reasonable time between sleeps)
-static const unsigned long NTP_RESYNC_INTERVAL_SEC = 6 * 3600;
+// NTP re-sync every 12 hours — ESP32 RTC drifts ~5-20s/hr, invisible at HH:MM
+static const unsigned long NTP_RESYNC_INTERVAL_SEC = 12 * 3600;
 
 TimeWidget::TimeWidget(Inkplate& display)
     : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(DEFAULT_TIME_UPDATE_INTERVAL) {}
@@ -31,21 +31,19 @@ TimeWidget::TimeWidget(Inkplate& display, unsigned long updateInterval)
 void TimeWidget::begin() {
     LOG_INFO("TimeWidget", "Initializing time widget...");
 
-    // Check if we already synced NTP in a previous deep sleep cycle
-    if (rtcHasEverSynced) {
-        time_t now = time(nullptr);
+    // The ESP32 RTC keeps time across deep sleep once configTime() has been
+    // called at least once. Check if time(nullptr) returns a sane epoch —
+    // if so, we can render the clock without any WiFi/NTP at all.
+    time_t now = time(nullptr);
+    if (rtcHasEverSynced && now > 1577836800) { // After Jan 1 2020
         unsigned long elapsed = (now > (time_t)rtcLastNTPSyncEpoch) ? (now - rtcLastNTPSyncEpoch) : 0;
-
-        if (elapsed < NTP_RESYNC_INTERVAL_SEC) {
-            LOG_INFO("TimeWidget", "RTC time still valid (synced %lu sec ago, resync every %lu sec)",
-                     elapsed, NTP_RESYNC_INTERVAL_SEC);
-            timeInitialized = true;
-            lastTimeUpdate = 0;
-            return;
-        }
-        LOG_INFO("TimeWidget", "RTC time stale (%lu sec since last sync), will re-sync", elapsed);
+        LOG_INFO("TimeWidget", "RTC time valid (epoch %lu, synced %lu sec ago)", (unsigned long)now, elapsed);
+        timeInitialized = true;
+        lastTimeUpdate = 0;
+        return;
     }
 
+    LOG_INFO("TimeWidget", "No valid RTC time — will need NTP sync");
     timeInitialized = false;
     lastTimeUpdate = 0;
 }
@@ -62,19 +60,10 @@ void TimeWidget::render(const LayoutRegion& region) {
     // Clear the region before drawing to prevent text overwriting
     clearRegion(region);
 
-    // Sync time if not initialized
-    if (!timeInitialized) {
-        LOG_INFO("TimeWidget", "Time not initialized, attempting NTP sync...");
-        syncTimeWithNTP();
-    }
-
-    // Draw time content within the region
-    LOG_DEBUG("TimeWidget", "About to call drawTimeDisplay()...");
+    // Draw time content within the region (uses RTC time, no WiFi needed)
     drawTimeDisplay(region);
-    LOG_DEBUG("TimeWidget", "drawTimeDisplay() completed");
 
     lastTimeUpdate = millis();
-    LOG_DEBUG("TimeWidget", "render() completed - lastTimeUpdate set to %lu", lastTimeUpdate);
 }
 
 void TimeWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& region) {
@@ -84,19 +73,10 @@ void TimeWidget::renderToCompositor(Compositor& compositor, const LayoutRegion& 
     // Clear the region on compositor before drawing to prevent text overwriting
     clearRegionOnCompositor(compositor, region);
 
-    // Sync time if not initialized
-    if (!timeInitialized) {
-        LOG_INFO("TimeWidget", "Time not initialized, attempting NTP sync...");
-        syncTimeWithNTP();
-    }
-
-    // Draw time content to compositor within the region
-    LOG_DEBUG("TimeWidget", "About to call drawTimeDisplayToCompositor()...");
+    // Draw time content to compositor (uses RTC time, no WiFi needed)
     drawTimeDisplayToCompositor(compositor, region);
-    LOG_DEBUG("TimeWidget", "drawTimeDisplayToCompositor() completed");
 
     lastTimeUpdate = millis();
-    LOG_DEBUG("TimeWidget", "renderToCompositor() completed - lastTimeUpdate set to %lu", lastTimeUpdate);
 }
 
 void TimeWidget::syncTimeWithNTP() {
@@ -251,21 +231,27 @@ void TimeWidget::forceUpdate() {
 }
 
 void TimeWidget::fetchData() {
-    // Pre-fetch NTP time while WiFi is still active
-    if (!timeInitialized) {
-        LOG_INFO("TimeWidget", "Pre-fetching NTP time while WiFi is active");
+    // Only sync NTP if we've never synced or drift correction is due (every 12h)
+    if (!rtcHasEverSynced) {
+        LOG_INFO("TimeWidget", "First boot — NTP sync required");
         syncTimeWithNTP();
+    } else {
+        time_t now = time(nullptr);
+        unsigned long elapsed = (now > (time_t)rtcLastNTPSyncEpoch) ? (now - rtcLastNTPSyncEpoch) : 0;
+        if (elapsed >= NTP_RESYNC_INTERVAL_SEC) {
+            LOG_INFO("TimeWidget", "NTP drift correction due (%lu sec since last sync)", elapsed);
+            syncTimeWithNTP();
+        } else {
+            LOG_INFO("TimeWidget", "Skipping NTP — RTC drift OK (%lu sec since sync)", elapsed);
+        }
     }
 }
 
 bool TimeWidget::needsNetworkFetch() const {
-    // Skip network fetch if RTC time is still valid from a previous sync
-    if (timeInitialized && rtcHasEverSynced) {
-        time_t now = time(nullptr);
-        unsigned long elapsed = (now > (time_t)rtcLastNTPSyncEpoch) ? (now - rtcLastNTPSyncEpoch) : 0;
-        return elapsed >= NTP_RESYNC_INTERVAL_SEC;
-    }
-    return !timeInitialized;
+    if (!rtcHasEverSynced) return true;
+    time_t now = time(nullptr);
+    unsigned long elapsed = (now > (time_t)rtcLastNTPSyncEpoch) ? (now - rtcLastNTPSyncEpoch) : 0;
+    return elapsed >= NTP_RESYNC_INTERVAL_SEC;
 }
 
 void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
