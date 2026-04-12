@@ -11,6 +11,7 @@ public:
     static void enableWakeOnTimer(unsigned long timeMs);
     static void enterDeepSleep();
     static void configureLowPowerMode();
+    static void disableBluetooth();
 
 private:
     static void disableUnusedPeripherals();

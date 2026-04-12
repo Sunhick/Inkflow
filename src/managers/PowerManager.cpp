@@ -1,6 +1,8 @@
 #include "PowerManager.h"
 #include "../core/Logger.h"
 #include <WiFi.h>
+#include "esp_bt.h"
+#include "esp_bt_main.h"
 
 void PowerManager::enableDeepSleep(unsigned long sleepTimeMs) {
     esp_sleep_enable_timer_wakeup(sleepTimeMs * 1000); // Convert to microseconds
@@ -44,4 +46,15 @@ void PowerManager::disableUnusedPeripherals() {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_ON);
     // RTC_FAST_MEM not needed (no RTC_FAST_ATTR usage)
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
+}
+
+void PowerManager::disableBluetooth() {
+    // Fully release the BT controller — saves ~50mA even when BT isn't actively used,
+    // because the controller may still be initialized by the framework at boot.
+    esp_bluedroid_disable();
+    esp_bluedroid_deinit();
+    esp_bt_controller_disable();
+    esp_bt_controller_deinit();
+    esp_bt_mem_release(ESP_BT_MODE_BTDM);
+    LOG_INFO("PowerManager", "Bluetooth controller disabled and memory released");
 }

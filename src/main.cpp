@@ -17,6 +17,9 @@ void setup() {
 
     LOG_INFO("Main", "=== INKPLATE IMAGE DISPLAY STARTING ===");
 
+    // Disable Bluetooth immediately — not used, saves ~50mA
+    PowerManager::disableBluetooth();
+
     // Check wake reason to determine if this is a scheduled wake or button wake
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
