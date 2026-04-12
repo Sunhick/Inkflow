@@ -386,6 +386,10 @@ void LayoutManager::performScheduledUpdates() {
         displayManager->showDebugMessage("Starting scheduled updates...");
     }
 
+    // Boost CPU for WiFi operations (WiFi needs minimum 80MHz, 160MHz for throughput)
+    setCpuFrequencyMhz(160);
+    LOG_INFO("LayoutManager", "CPU boosted to 160MHz for WiFi operations");
+
     if (wifiManager->connect()) {
         LOG_INFO("LayoutManager", "WiFi connected, fetching all network data first");
 
@@ -422,10 +426,12 @@ void LayoutManager::performScheduledUpdates() {
             }
         }
 
-        // Phase 2: Disconnect WiFi immediately to save power
+        // Phase 2: Disconnect WiFi and drop CPU back to 80MHz
         LOG_INFO("LayoutManager", "Network fetches complete - disconnecting WiFi before rendering");
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
+        setCpuFrequencyMhz(80);
+        LOG_INFO("LayoutManager", "CPU reduced to 80MHz for rendering");
 
         if (debugModeEnabled) {
             displayManager->showDebugMessage("WiFi off - rendering...");
@@ -442,6 +448,9 @@ void LayoutManager::performScheduledUpdates() {
         }
     } else {
         LOG_ERROR("LayoutManager", "WiFi connection failed - rendering with cached data");
+
+        // Drop CPU back to 80MHz since WiFi failed
+        setCpuFrequencyMhz(80);
 
         if (debugModeEnabled) {
             displayManager->showDebugMessage("WiFi failed - using cache");

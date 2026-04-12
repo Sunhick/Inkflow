@@ -20,6 +20,10 @@ void setup() {
     // Disable Bluetooth immediately — not used, saves ~50mA
     PowerManager::disableBluetooth();
 
+    // Start at 80MHz — sufficient for init, rendering, and config loading
+    setCpuFrequencyMhz(80);
+    LOG_INFO("Main", "CPU frequency set to 80MHz (low power)");
+
     // Check wake reason to determine if this is a scheduled wake or button wake
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
