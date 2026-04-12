@@ -160,20 +160,29 @@ bool ConfigManager::loadConfig() {
         }
     }
 
-    // Parse layout regions
+    // Parse layout regions — use preset if specified, otherwise use manual Layout
     config.regions.clear();
-    JsonObject layout = doc["Layout"];
-    for (JsonPair regionPair : layout) {
-        String regionId = regionPair.key().c_str();
-        JsonObject regionObj = regionPair.value();
+    String layoutPreset = doc["LayoutPreset"] | "";
 
-        RegionConfig regionConfig;
-        regionConfig.x = regionObj["X"] | 0;
-        regionConfig.y = regionObj["Y"] | 0;
-        regionConfig.width = regionObj["Width"] | 300;
-        regionConfig.height = regionObj["Height"] | 300;
+    if (layoutPreset.length() > 0 && !doc.containsKey("Layout")) {
+        // Apply preset layout
+        LOG_INFO("ConfigManager", "Applying layout preset: %s", layoutPreset.c_str());
+        applyPreset(layoutPreset, config.regions, config.displayWidth, config.displayHeight);
+    } else {
+        // Parse manual layout regions (overrides preset if both exist)
+        JsonObject layout = doc["Layout"];
+        for (JsonPair regionPair : layout) {
+            String regionId = regionPair.key().c_str();
+            JsonObject regionObj = regionPair.value();
 
-        config.regions[regionId] = regionConfig;
+            RegionConfig regionConfig;
+            regionConfig.x = regionObj["X"] | 0;
+            regionConfig.y = regionObj["Y"] | 0;
+            regionConfig.width = regionObj["Width"] | 300;
+            regionConfig.height = regionObj["Height"] | 300;
+
+            config.regions[regionId] = regionConfig;
+        }
     }
 
     // Display configuration
@@ -385,4 +394,155 @@ RegionConfig ConfigManager::getRegionConfig(const String& regionId) const {
     defaultConfig.width = 300;
     defaultConfig.height = 300;
     return defaultConfig;
+}
+
+// ============================================================
+// Layout Presets for Inkplate 10 (1200x825)
+// ============================================================
+//
+// All presets use these standard region IDs so widgets can
+// reference them in config.json:
+//   name-region, datetime-region, weather-region,
+//   battery-region, image-region
+//
+// Presets: sidebar-left, sidebar-right, dashboard,
+//          photo-frame, info-panel, calendar
+
+void ConfigManager::applyPreset(const String& presetName,
+                                std::map<String, RegionConfig>& regions,
+                                int w, int h) {
+    if (presetName == "sidebar-left")       presetSidebarLeft(regions, w, h);
+    else if (presetName == "sidebar-right") presetSidebarRight(regions, w, h);
+    else if (presetName == "dashboard")     presetDashboard(regions, w, h);
+    else if (presetName == "photo-frame")   presetPhotoFrame(regions, w, h);
+    else if (presetName == "info-panel")    presetInfoPanel(regions, w, h);
+    else if (presetName == "calendar")      presetCalendar(regions, w, h);
+    else {
+        LOG_WARN("ConfigManager", "Unknown layout preset '%s', falling back to sidebar-left",
+                 presetName.c_str());
+        presetSidebarLeft(regions, w, h);
+    }
+}
+
+// ┌──────────┬─────────────────────────────┐
+// │  name    │                             │
+// ├──────────┤                             │
+// │  time    │         image               │
+// ├──────────┤                             │
+// │  weather │                             │
+// ├──────────┤                             │
+// │  battery │                             │
+// └──────────┴─────────────────────────────┘
+void ConfigManager::presetSidebarLeft(std::map<String, RegionConfig>& regions, int w, int h) {
+    int sidebar = w / 5; // 20% sidebar
+    int rowH = h / 4;
+
+    regions["name-region"]     = {0, 0,          sidebar, rowH};
+    regions["datetime-region"] = {0, rowH,       sidebar, rowH};
+    regions["weather-region"]  = {0, rowH * 2,   sidebar, rowH};
+    regions["battery-region"]  = {0, rowH * 3,   sidebar, h - rowH * 3};
+    regions["image-region"]    = {sidebar, 0,    w - sidebar, h};
+}
+
+// ┌─────────────────────────────┬──────────┐
+// │                             │  name    │
+// │                             ├──────────┤
+// │         image               │  time    │
+// │                             ├──────────┤
+// │                             │  weather │
+// │                             ├──────────┤
+// │                             │  battery │
+// └─────────────────────────────┴──────────┘
+void ConfigManager::presetSidebarRight(std::map<String, RegionConfig>& regions, int w, int h) {
+    int sidebar = w / 5;
+    int mainW = w - sidebar;
+    int rowH = h / 4;
+
+    regions["image-region"]    = {0, 0,          mainW, h};
+    regions["name-region"]     = {mainW, 0,      sidebar, rowH};
+    regions["datetime-region"] = {mainW, rowH,   sidebar, rowH};
+    regions["weather-region"]  = {mainW, rowH*2, sidebar, rowH};
+    regions["battery-region"]  = {mainW, rowH*3, sidebar, h - rowH * 3};
+}
+
+// ┌───────────────┬───────────────┐
+// │  name         │  time         │
+// ├───────────────┼───────────────┤
+// │  weather      │  battery      │
+// ├───────────────┴───────────────┤
+// │           image               │
+// └───────────────────────────────┘
+void ConfigManager::presetDashboard(std::map<String, RegionConfig>& regions, int w, int h) {
+    int halfW = w / 2;
+    int topH = h / 4;
+    int imgH = h - topH * 2;
+
+    regions["name-region"]     = {0,     0,    halfW, topH};
+    regions["datetime-region"] = {halfW, 0,    halfW, topH};
+    regions["weather-region"]  = {0,     topH, halfW, topH};
+    regions["battery-region"]  = {halfW, topH, halfW, topH};
+    regions["image-region"]    = {0, topH * 2, w,     imgH};
+}
+
+// ┌───────────────────────────────┐
+// │                               │
+// │           image               │
+// │                               │
+// ├─────┬─────┬─────────┬────────┤
+// │time │batt │ weather  │ name   │
+// └─────┴─────┴─────────┴────────┘
+void ConfigManager::presetPhotoFrame(std::map<String, RegionConfig>& regions, int w, int h) {
+    int barH = h / 8;       // Thin bottom bar (~103px)
+    int imgH = h - barH;
+    int col = w / 4;
+
+    regions["image-region"]    = {0, 0,       w,     imgH};
+    regions["datetime-region"] = {0,     imgH, col,   barH};
+    regions["battery-region"]  = {col,   imgH, col,   barH};
+    regions["weather-region"]  = {col*2, imgH, col,   barH};
+    regions["name-region"]     = {col*3, imgH, w - col*3, barH};
+}
+
+// ┌──────────┬──────────┬──────────┐
+// │  name    │  time    │ battery  │
+// ├──────────┴──────────┴──────────┤
+// │           weather              │
+// ├────────────────────────────────┤
+// │           image                │
+// └────────────────────────────────┘
+void ConfigManager::presetInfoPanel(std::map<String, RegionConfig>& regions, int w, int h) {
+    int topH = h / 6;       // ~137px header
+    int midH = h / 4;       // ~206px weather
+    int imgH = h - topH - midH;
+    int col3 = w / 3;
+
+    regions["name-region"]     = {0,      0,    col3,       topH};
+    regions["datetime-region"] = {col3,   0,    col3,       topH};
+    regions["battery-region"]  = {col3*2, 0,    w - col3*2, topH};
+    regions["weather-region"]  = {0,      topH, w,          midH};
+    regions["image-region"]    = {0, topH + midH, w,        imgH};
+}
+
+// ┌──────────┬─────────────────────┐
+// │  name    │                     │
+// ├──────────┤                     │
+// │  time    │      image          │
+// ├──────────┤                     │
+// │  weather │                     │
+// ├──────────┤                     │
+// │          │                     │
+// │ battery  │                     │
+// └──────────┴─────────────────────┘
+void ConfigManager::presetCalendar(std::map<String, RegionConfig>& regions, int w, int h) {
+    int sidebar = w * 3 / 10; // 30% sidebar — wider for text-heavy widgets
+    int nameH = h / 6;
+    int timeH = h / 3;
+    int weatherH = h / 4;
+    int battH = h - nameH - timeH - weatherH;
+
+    regions["name-region"]     = {0, 0,                          sidebar, nameH};
+    regions["datetime-region"] = {0, nameH,                      sidebar, timeH};
+    regions["weather-region"]  = {0, nameH + timeH,              sidebar, weatherH};
+    regions["battery-region"]  = {0, nameH + timeH + weatherH,   sidebar, battH};
+    regions["image-region"]    = {sidebar, 0,                    w - sidebar, h};
 }
