@@ -12,8 +12,8 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
 
-    // Initialize logger
-    Logger::setLogLevel(LogLevel::INFO);
+    // Initialize logger — ERROR only in production to save power (UART draws current)
+    Logger::setLogLevel(LogLevel::ERROR);
 
     LOG_INFO("Main", "=== INKPLATE IMAGE DISPLAY STARTING ===");
 
