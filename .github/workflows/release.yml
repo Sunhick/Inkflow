@@ -1,0 +1,85 @@
+name: Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: ~/.platformio
+        key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade platformio
+
+    - name: Build firmware
+      run: pio run --environment esp32
+
+    - name: Package firmware
+      run: |
+        mkdir -p release
+        cp .pio/build/esp32/firmware.bin release/inkplate-firmware-${{ github.ref_name }}.bin
+        cp .pio/build/esp32/bootloader.bin release/ 2>/dev/null || true
+        cp .pio/build/esp32/partitions.bin release/ 2>/dev/null || true
+        cp scripts/setup-config.py release/ 2>/dev/null || true
+        cp data/presets/*.json release/ 2>/dev/null || true
+
+        # Create a zip with everything needed to flash
+        cd release
+        zip -r ../inkplate-firmware-${{ github.ref_name }}.zip .
+        cd ..
+
+    - name: Generate release notes
+      id: notes
+      run: |
+        echo "body<<EOF" >> $GITHUB_OUTPUT
+        echo "## Inkplate Smart Display Firmware ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "### Included files" >> $GITHUB_OUTPUT
+        echo "- \`inkplate-firmware-${{ github.ref_name }}.bin\` — main firmware binary" >> $GITHUB_OUTPUT
+        echo "- \`inkplate-firmware-${{ github.ref_name }}.zip\` — full package (firmware + bootloader + partitions + preset configs + setup script)" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "### Flash instructions" >> $GITHUB_OUTPUT
+        echo '```bash' >> $GITHUB_OUTPUT
+        echo "pip install esptool" >> $GITHUB_OUTPUT
+        echo "esptool.py --chip esp32 --baud 460800 write_flash -z 0x10000 inkplate-firmware-${{ github.ref_name }}.bin" >> $GITHUB_OUTPUT
+        echo '```' >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "### Layout presets" >> $GITHUB_OUTPUT
+        echo "sidebar-left, sidebar-right, dashboard, photo-frame, info-panel, calendar" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "### Changes" >> $GITHUB_OUTPUT
+        git log --oneline --no-decorate $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD >> $GITHUB_OUTPUT 2>/dev/null || echo "Initial release" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: false
+        body: ${{ steps.notes.outputs.body }}
+        files: |
+          release/inkplate-firmware-${{ github.ref_name }}.bin
+          release/bootloader.bin
+          release/partitions.bin
+          inkplate-firmware-${{ github.ref_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
