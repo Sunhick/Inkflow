@@ -235,6 +235,18 @@ bool WeatherWidget::isWeatherDataValid() const {
     return currentWeather.isValid;
 }
 
+void WeatherWidget::fetchData() {
+    // Pre-fetch weather data while WiFi is still active
+    if (!currentWeather.isValid || shouldUpdate()) {
+        LOG_INFO("WeatherWidget", "Pre-fetching weather data while WiFi is active");
+        fetchWeatherData();
+    }
+}
+
+bool WeatherWidget::needsNetworkFetch() const {
+    return !currentWeather.isValid || shouldUpdate();
+}
+
 void WeatherWidget::drawWeatherDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
     int margin = 10;
     int labelX = region.getX() + margin;

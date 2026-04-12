@@ -34,6 +34,11 @@ public:
     virtual bool needsImmediateUpdate() const { return false; } // Most widgets don't need immediate updates
     virtual void update();
 
+    // Network data fetching — called while WiFi is active, before rendering
+    // Override in widgets that need network access (weather, time/NTP, etc.)
+    virtual void fetchData() {}
+    virtual bool needsNetworkFetch() const { return false; }
+
 protected:
     Inkplate& display;
 

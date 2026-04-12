@@ -225,6 +225,18 @@ void TimeWidget::forceUpdate() {
     lastTimeUpdate = 0; // Force next shouldUpdate() to return true
 }
 
+void TimeWidget::fetchData() {
+    // Pre-fetch NTP time while WiFi is still active
+    if (!timeInitialized) {
+        LOG_INFO("TimeWidget", "Pre-fetching NTP time while WiFi is active");
+        syncTimeWithNTP();
+    }
+}
+
+bool TimeWidget::needsNetworkFetch() const {
+    return !timeInitialized;
+}
+
 void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
     LOG_DEBUG("TimeWidget", "drawTimeDisplayToCompositor() - Drawing time to compositor");
 

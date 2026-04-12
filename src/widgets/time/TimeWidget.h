@@ -28,6 +28,10 @@ public:
     String getFormattedTime();
     String getDayOfWeek();
 
+    // Network data fetching — sync NTP while WiFi is active
+    void fetchData() override;
+    bool needsNetworkFetch() const override;
+
 private:
     unsigned long lastTimeUpdate;
     bool timeInitialized;

@@ -387,33 +387,58 @@ void LayoutManager::performScheduledUpdates() {
     }
 
     if (wifiManager->connect()) {
-        LOG_INFO("LayoutManager", "WiFi connected, performing full update");
+        LOG_INFO("LayoutManager", "WiFi connected, fetching all network data first");
 
         if (debugModeEnabled) {
             displayManager->showStatus("Connected", "WiFi", wifiManager->getIPAddress().c_str());
             displayManager->showDebugMessage(("WiFi: " + wifiManager->getIPAddress()).c_str());
+        }
+
+        // Phase 1: Fetch all network data while WiFi is active
+        if (ensureConnectivity()) {
+            LOG_INFO("LayoutManager", "Connectivity ensured - fetching widget data over network");
+
+            if (debugModeEnabled) {
+                displayManager->showDebugMessage("Fetching data...");
+            }
+
+            // Force all widgets to mark themselves for update
+            forceWidgetDataUpdate();
+
+            // Pre-fetch network data for all widgets that need it
+            for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
+                LayoutRegion* region = it->get();
+                if (region) {
+                    for (size_t i = 0; i < region->getWidgetCount(); ++i) {
+                        Widget* widget = region->getWidget(i);
+                        if (widget && widget->needsNetworkFetch()) {
+                            widget->fetchData();
+                        }
+                    }
+                    if (region->getLegacyWidget() && region->getLegacyWidget()->needsNetworkFetch()) {
+                        region->getLegacyWidget()->fetchData();
+                    }
+                }
+            }
+        }
+
+        // Phase 2: Disconnect WiFi immediately to save power
+        LOG_INFO("LayoutManager", "Network fetches complete - disconnecting WiFi before rendering");
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+
+        if (debugModeEnabled) {
+            displayManager->showDebugMessage("WiFi off - rendering...");
         } else {
-            // Clear any previous status messages when not in debug mode
             displayManager->clear();
         }
 
-        // Force connectivity check and widget updates
-        if (ensureConnectivity()) {
-            LOG_INFO("LayoutManager", "Connectivity ensured - updating all widgets");
+        // Phase 3: Render all regions with cached data (WiFi is now off)
+        LOG_INFO("LayoutManager", "Rendering all regions with fetched data");
+        renderAllRegions();
 
-            if (debugModeEnabled) {
-                displayManager->showDebugMessage("Updating widgets...");
-            }
-
-            // Force all widgets to update their data
-            forceWidgetDataUpdate();
-
-            // Render all regions with fresh data
-            renderAllRegions();
-
-            if (debugModeEnabled) {
-                displayManager->showDebugMessage("Update complete");
-            }
+        if (debugModeEnabled) {
+            displayManager->showDebugMessage("Update complete");
         }
     } else {
         LOG_ERROR("LayoutManager", "WiFi connection failed - rendering with cached data");
