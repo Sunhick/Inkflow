@@ -42,10 +42,11 @@ public:
     // No more hardcoded region getters - use getRegionById() instead
 
     // Configuration getters for power management
-    unsigned long getShortestUpdateInterval() const;
+    unsigned long getShortestUpdateInterval();
     int getWakeButtonPin() const;
     bool shouldEnterDeepSleep() const;
     unsigned long getDeepSleepThreshold() const;
+    int getBatteryPercentage();
 
     // Widget-region assignment methods
     bool assignWidgetToRegion(Widget* widget, const String& regionId);

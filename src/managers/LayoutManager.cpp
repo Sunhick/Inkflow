@@ -960,7 +960,7 @@ void LayoutManager::forceTimeAndBatteryUpdate() {
 
 
 
-unsigned long LayoutManager::getShortestUpdateInterval() const {
+unsigned long LayoutManager::getShortestUpdateInterval() {
     if (!configManager) return 3600000; // Default 1 hour if no config
 
     const AppConfig& config = configManager->getConfig();
@@ -978,6 +978,18 @@ unsigned long LayoutManager::getShortestUpdateInterval() const {
 
     for (const auto& batteryConfig : config.batteryWidgets) {
         shortest = min(shortest, batteryConfig.batteryUpdateMs);
+    }
+
+    // Adapt interval based on battery level to extend battery life
+    int batteryPercent = getBatteryPercentage();
+    if (batteryPercent >= 0) {
+        if (batteryPercent < 10) {
+            shortest *= 4; // Critical battery: 4x slower updates
+            LOG_INFO("LayoutManager", "Critical battery (%d%%) - update interval 4x: %lu ms", batteryPercent, shortest);
+        } else if (batteryPercent < 25) {
+            shortest *= 2; // Low battery: 2x slower updates
+            LOG_INFO("LayoutManager", "Low battery (%d%%) - update interval 2x: %lu ms", batteryPercent, shortest);
+        }
     }
 
     return shortest;
@@ -1002,6 +1014,16 @@ unsigned long LayoutManager::getDeepSleepThreshold() const {
 
     const AppConfig& config = configManager->getConfig();
     return config.deepSleepThresholdMs;
+}
+
+int LayoutManager::getBatteryPercentage() {
+    float voltage = display.readBattery();
+    const float minV = 3.2f;
+    const float maxV = 4.2f;
+
+    if (voltage <= minV) return 0;
+    if (voltage >= maxV) return 100;
+    return (int)(((voltage - minV) / (maxV - minV)) * 100.0f);
 }
 
 void LayoutManager::demonstrateCompositorIntegration() {
