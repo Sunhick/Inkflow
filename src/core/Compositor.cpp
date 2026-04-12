@@ -3,6 +3,10 @@
 #include <cstring>
 #include <algorithm>
 
+#ifndef UNIT_TEST
+#include <esp32-hal-psram.h>
+#endif
+
 Compositor::Compositor(int width, int height)
     : virtualSurface(nullptr)
     , dirtyRegions(nullptr)
@@ -69,19 +73,31 @@ bool Compositor::initialize() {
         return false;
     }
 
-    // Allocate virtual surface buffer
+    // Allocate virtual surface buffer in PSRAM (~1MB is too large for internal SRAM)
+#ifndef UNIT_TEST
+    virtualSurface = (uint8_t*)ps_malloc(surfaceSize);
+#else
     virtualSurface = new(std::nothrow) uint8_t[surfaceSize];
+#endif
     if (!virtualSurface) {
         setError(CompositorError::MemoryAllocationFailed);
         logError("initialize", lastError);
         return false;
     }
 
-    // Allocate dirty regions tracking (one bool per pixel for simplicity)
+    // Allocate dirty regions tracking in PSRAM
     size_t dirtySize = static_cast<size_t>(surfaceWidth) * surfaceHeight;
+#ifndef UNIT_TEST
+    dirtyRegions = (bool*)ps_malloc(dirtySize * sizeof(bool));
+#else
     dirtyRegions = new(std::nothrow) bool[dirtySize];
+#endif
     if (!dirtyRegions) {
+#ifndef UNIT_TEST
+        free(virtualSurface);
+#else
         delete[] virtualSurface;
+#endif
         virtualSurface = nullptr;
         setError(CompositorError::MemoryAllocationFailed);
         logError("initialize", lastError);
@@ -121,12 +137,20 @@ bool Compositor::initializeWithRetry(int maxAttempts) {
 
 void Compositor::cleanup() {
     if (virtualSurface) {
+#ifndef UNIT_TEST
+        free(virtualSurface);
+#else
         delete[] virtualSurface;
+#endif
         virtualSurface = nullptr;
     }
 
     if (dirtyRegions) {
+#ifndef UNIT_TEST
+        free(dirtyRegions);
+#else
         delete[] dirtyRegions;
+#endif
         dirtyRegions = nullptr;
     }
 
