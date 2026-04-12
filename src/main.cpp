@@ -10,7 +10,9 @@ void handleWakeButton();
 
 void setup() {
     Serial.begin(115200);
-    delay(1000);
+    // Brief pause for serial init — use light sleep instead of active delay
+    esp_sleep_enable_timer_wakeup(500000); // 500ms
+    esp_light_sleep_start();
 
     // Initialize logger — ERROR only in production to save power (UART draws current)
     Logger::setLogLevel(LogLevel::ERROR);
