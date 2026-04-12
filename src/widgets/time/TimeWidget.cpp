@@ -13,6 +13,13 @@ const char* ntpServers[] = {
     "0.pool.ntp.org"
 };
 
+// Persist NTP sync state across deep sleep — RTC slow memory survives deep sleep
+RTC_DATA_ATTR static unsigned long rtcLastNTPSyncEpoch = 0;
+RTC_DATA_ATTR static bool rtcHasEverSynced = false;
+
+// Only re-sync NTP every 6 hours (ESP32 RTC keeps reasonable time between sleeps)
+static const unsigned long NTP_RESYNC_INTERVAL_SEC = 6 * 3600;
+
 TimeWidget::TimeWidget(Inkplate& display)
     : Widget(display), lastTimeUpdate(0), timeInitialized(false), timeUpdateInterval(DEFAULT_TIME_UPDATE_INTERVAL) {}
 
@@ -23,6 +30,22 @@ TimeWidget::TimeWidget(Inkplate& display, unsigned long updateInterval)
 
 void TimeWidget::begin() {
     LOG_INFO("TimeWidget", "Initializing time widget...");
+
+    // Check if we already synced NTP in a previous deep sleep cycle
+    if (rtcHasEverSynced) {
+        time_t now = time(nullptr);
+        unsigned long elapsed = (now > (time_t)rtcLastNTPSyncEpoch) ? (now - rtcLastNTPSyncEpoch) : 0;
+
+        if (elapsed < NTP_RESYNC_INTERVAL_SEC) {
+            LOG_INFO("TimeWidget", "RTC time still valid (synced %lu sec ago, resync every %lu sec)",
+                     elapsed, NTP_RESYNC_INTERVAL_SEC);
+            timeInitialized = true;
+            lastTimeUpdate = 0;
+            return;
+        }
+        LOG_INFO("TimeWidget", "RTC time stale (%lu sec since last sync), will re-sync", elapsed);
+    }
+
     timeInitialized = false;
     lastTimeUpdate = 0;
 }
@@ -99,7 +122,9 @@ void TimeWidget::syncTimeWithNTP() {
 
             if (now > 1577836800) { // January 1, 2020 00:00:00 UTC
                 timeInitialized = true;
-                LOG_INFO("TimeWidget", "Time synchronized successfully!");
+                rtcLastNTPSyncEpoch = (unsigned long)now;
+                rtcHasEverSynced = true;
+                LOG_INFO("TimeWidget", "Time synchronized successfully! Epoch saved to RTC memory.");
 
                 struct tm* timeinfo = localtime(&now);
                 LOG_DEBUG("TimeWidget", "Current time: %s", asctime(timeinfo));
@@ -234,6 +259,12 @@ void TimeWidget::fetchData() {
 }
 
 bool TimeWidget::needsNetworkFetch() const {
+    // Skip network fetch if RTC time is still valid from a previous sync
+    if (timeInitialized && rtcHasEverSynced) {
+        time_t now = time(nullptr);
+        unsigned long elapsed = (now > (time_t)rtcLastNTPSyncEpoch) ? (now - rtcLastNTPSyncEpoch) : 0;
+        return elapsed >= NTP_RESYNC_INTERVAL_SEC;
+    }
     return !timeInitialized;
 }
 

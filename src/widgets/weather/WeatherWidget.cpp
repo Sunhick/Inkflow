@@ -5,11 +5,29 @@
 
 const char* WeatherWidget::WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
 
+// Persist weather data across deep sleep cycles
+RTC_DATA_ATTR static float rtcWeatherTemp = 0;
+RTC_DATA_ATTR static int rtcWeatherCode = -1;
+RTC_DATA_ATTR static int rtcWeatherPrecipProb = 0;
+RTC_DATA_ATTR static unsigned long rtcLastWeatherFetchEpoch = 0;
+
 WeatherWidget::WeatherWidget(Inkplate& display, const String& latitude, const String& longitude,
                            const String& city, const String& units)
     : Widget(display), lastWeatherUpdate(0), weatherLatitude(latitude),
       weatherLongitude(longitude), weatherCity(city), weatherUnits(units) {
     currentWeather.isValid = false;
+
+    // Restore cached weather data from RTC memory if available
+    if (rtcWeatherCode >= 0) {
+        currentWeather.temperature = rtcWeatherTemp;
+        currentWeather.description = getWeatherDescription(rtcWeatherCode);
+        currentWeather.icon = String(rtcWeatherCode);
+        currentWeather.precipitationProbability = rtcWeatherPrecipProb;
+        currentWeather.humidity = 0;
+        currentWeather.isValid = true;
+        LOG_INFO("WeatherWidget", "Restored cached weather from RTC: %.1fF, %s",
+                 rtcWeatherTemp, currentWeather.description.c_str());
+    }
 }
 
 void WeatherWidget::begin() {
@@ -128,7 +146,14 @@ void WeatherWidget::parseWeatherResponse(String response) {
 
         currentWeather.isValid = true;
 
-        LOG_INFO("WeatherWidget", "Weather: %.1f°F, %s, %d%% rain (code: %d)",
+        // Cache to RTC memory for deep sleep persistence
+        rtcWeatherTemp = currentWeather.temperature;
+        rtcWeatherCode = weatherCode;
+        rtcWeatherPrecipProb = currentWeather.precipitationProbability;
+        time_t now = time(nullptr);
+        rtcLastWeatherFetchEpoch = (unsigned long)now;
+
+        LOG_INFO("WeatherWidget", "Weather: %.1f°F, %s, %d%% rain (code: %d) - cached to RTC",
                  currentWeather.temperature,
                  currentWeather.description.c_str(),
                  currentWeather.precipitationProbability,
@@ -244,7 +269,14 @@ void WeatherWidget::fetchData() {
 }
 
 bool WeatherWidget::needsNetworkFetch() const {
-    return !currentWeather.isValid || shouldUpdate();
+    // If we have cached RTC data, check if it's still within the update interval
+    if (currentWeather.isValid && rtcLastWeatherFetchEpoch > 0) {
+        time_t now = time(nullptr);
+        unsigned long elapsed = (now > (time_t)rtcLastWeatherFetchEpoch) ? (now - rtcLastWeatherFetchEpoch) : 0;
+        unsigned long intervalSec = WEATHER_UPDATE_INTERVAL / 1000;
+        return elapsed >= intervalSec;
+    }
+    return !currentWeather.isValid;
 }
 
 void WeatherWidget::drawWeatherDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
