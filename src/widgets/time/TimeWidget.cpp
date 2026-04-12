@@ -108,8 +108,8 @@ void TimeWidget::syncTimeWithNTP() {
 
     LOG_INFO("TimeWidget", "Syncing time with NTP server...");
 
-    // Try multiple NTP servers
-    for (int serverIndex = 0; serverIndex < 4; serverIndex++) {
+    // Try 2 NTP servers with 3 attempts each (max ~6 seconds vs previous ~40 seconds)
+    for (int serverIndex = 0; serverIndex < 2; serverIndex++) {
         LOG_DEBUG("TimeWidget", "Trying NTP server: %s", ntpServers[serverIndex]);
 
         configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, ntpServers[serverIndex]);
@@ -117,7 +117,7 @@ void TimeWidget::syncTimeWithNTP() {
         int attempts = 0;
         time_t now = 0;
 
-        while (attempts < 10) {
+        while (attempts < 3) {
             now = time(nullptr);
 
             if (now > 1577836800) { // January 1, 2020 00:00:00 UTC

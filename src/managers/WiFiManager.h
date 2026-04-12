@@ -19,7 +19,7 @@ private:
     const char* password;
     unsigned long lastConnectionCheck;
 
-    static const int MAX_RETRIES = 30;
+    static const int MAX_RETRIES = 12;            // 6 seconds max (12 × 500ms)
     static const unsigned long CHECK_INTERVAL = 30000; // 30 seconds
 
     bool attemptConnection();
