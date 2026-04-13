@@ -20,8 +20,8 @@ graph TD
 
     subgraph Core
         C[Compositor]
-        VS[Virtual Surface<br/>1200×825 bytes<br/>PSRAM]
-        CT[Change Tracker<br/>Dirty Regions]
+        VS[Virtual Surface<br/>1200×825 bytes<br/>PSRAM ~990KB]
+        CT[Changed Regions<br/>vector of LayoutRegion]
     end
 
     subgraph Display
@@ -45,7 +45,7 @@ graph TD
 
 ## Initialization Sequence
 
-PSRAM must be available before the compositor allocates its buffers. The Inkplate library initializes PSRAM inside `display.begin()`, so compositor init is deferred until after that call.
+PSRAM must be available before the compositor allocates its surface buffer. The Inkplate library initializes PSRAM inside `display.begin()`, so compositor init is deferred until after that call.
 
 ```mermaid
 sequenceDiagram
@@ -66,8 +66,8 @@ sequenceDiagram
     Note over Disp: PSRAM now available
     DM->>Disp: setDisplayMode(1-bit or 3-bit)
     LM->>Comp: initialize()
-    Comp->>Comp: ps_malloc(~1MB surface)
-    Comp->>Comp: ps_malloc(dirty regions)
+    Comp->>Comp: heap_caps_malloc(990KB, SPIRAM)
+    Note over Comp: Single allocation for surface only
     Comp-->>LM: success
     LM->>DM: setCompositor(compositor)
 ```
@@ -105,12 +105,12 @@ flowchart TD
     B -->|Yes| C[For each dirty region]
     C --> D[compositor.clearRegion]
     D --> E[widget.renderToCompositor]
-    E --> F[Mark region changed]
+    E --> F[markRegionChanged — adds to changedAreas]
     F --> G[region.markClean]
     G --> C
     C -->|Done| H{Any changes?}
-    H -->|Yes| I[Optimize: merge overlapping regions]
-    I --> J[Coalesce nearby small regions]
+    H -->|Yes| I[Merge overlapping regions]
+    I --> J[Coalesce nearby regions]
     J --> K[compositor.partialDisplayToInkplate]
     K --> L[Copy only changed regions → display]
     L --> M[display.partialUpdate — fast e-ink refresh]
@@ -123,24 +123,26 @@ flowchart TD
 ## Memory Layout
 
 ```
-PSRAM Allocation (~1MB total):
+PSRAM (single allocation, ~990KB):
 ┌─────────────────────────────────────────┐
 │  Virtual Surface Buffer                 │
 │  1200 × 825 × 1 byte = 990,000 bytes   │
 │  (8-bit grayscale per pixel)            │
-├─────────────────────────────────────────┤
-│  Dirty Region Tracking                  │
-│  1200 × 825 × 1 bool = 990,000 bytes   │
-│  (per-pixel dirty flag)                 │
 └─────────────────────────────────────────┘
 
-Internal SRAM (small allocations):
+Internal SRAM (small, dynamic):
 ┌─────────────────────────────────────────┐
-│  changedAreas vector (LayoutRegions)    │
-│  regionHistory vector (update stats)    │
-│  UpdateMetrics struct                   │
+│  changedAreas: vector<LayoutRegion>     │
+│  ~5-10 regions × 16 bytes = ~160 bytes  │
+├─────────────────────────────────────────┤
+│  regionHistory: vector<RegionHistory>   │
+│  update frequency stats per region      │
+├─────────────────────────────────────────┤
+│  UpdateMetrics struct (~32 bytes)       │
 └─────────────────────────────────────────┘
 ```
+
+Dirty region tracking uses widget-level rectangles (`changedAreas` vector) instead of a per-pixel boolean array. This saves ~990KB of PSRAM — the per-pixel array was redundant since widgets always render to rectangular regions and the partial update logic already operated on rectangles.
 
 ## Region Merge Optimization
 
@@ -198,7 +200,9 @@ The compositor tracks update performance for self-tuning:
 
 ## Configuration
 
-Tunable via code (no config.json exposure yet):
+`Display.EnableCompositor` in config.json (default: `false`). Set to `true` to enable.
+
+Tunable via code:
 
 ```cpp
 compositor->setMaxRegionMergeDistance(50);        // px gap to still merge
@@ -206,3 +210,10 @@ compositor->setMinRegionSizeForPartialUpdate(100); // min px² for partial
 compositor->setUpdateFrequencyThreshold(5000);     // ms between updates
 compositor->setRegionMergeEfficiencyThreshold(0.7); // merge if >70% efficient
 ```
+
+## ESP32 PSRAM Notes
+
+- PSRAM is initialized by `display.begin()` — compositor must init after
+- Uses `heap_caps_malloc(size, MALLOC_CAP_SPIRAM)` for explicit PSRAM allocation
+- `CORE_DEBUG_LEVEL` must be 0 and `CONFIG_HEAP_POISONING_DISABLED=1` to avoid false heap corruption asserts from the Inkplate library's PSRAM usage
+- Inkplate 10 v2 has ~4MB PSRAM; compositor uses ~990KB (~24%)
