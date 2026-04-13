@@ -31,6 +31,9 @@ public:
     void showDiagnosticsInRegionToCompositor(Compositor& compositor, const LayoutRegion& region, const char* ipAddress, int signalStrength);
     int getConsecutiveFailures() const { return consecutiveFailures; }
 
+    // ImageWidget needs WiFi during render (streams JPEG directly to display)
+    bool needsNetworkFetch() const override { return shouldUpdate(); }
+
 private:
     const char* imageUrl;
     int consecutiveFailures;

@@ -408,12 +408,15 @@ void LayoutManager::performScheduledUpdates() {
         }
     }
 
+    bool wifiConnected = false;
+
     if (anyWidgetNeedsNetwork) {
         // Boost CPU for WiFi operations (WiFi needs minimum 80MHz, 160MHz for throughput)
         setCpuFrequencyMhz(160);
         LOG_INFO("LayoutManager", "Widgets need network — CPU boosted to 160MHz");
 
         if (wifiManager->connect()) {
+            wifiConnected = true;
             LOG_INFO("LayoutManager", "WiFi connected, fetching network data");
 
             if (debugModeEnabled) {
@@ -421,7 +424,7 @@ void LayoutManager::performScheduledUpdates() {
             }
 
             if (ensureConnectivity()) {
-                // Fetch network data only for widgets that need it
+                // Pre-fetch data for widgets that support it (weather, NTP, etc.)
                 for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
                     LayoutRegion* region = it->get();
                     if (region) {
@@ -438,24 +441,28 @@ void LayoutManager::performScheduledUpdates() {
                 }
             }
 
-            // Disconnect WiFi and drop CPU immediately
-            WiFi.disconnect(true);
-            WiFi.mode(WIFI_OFF);
+            // Keep WiFi alive — ImageWidget streams JPEG during render()
         } else {
             LOG_ERROR("LayoutManager", "WiFi connection failed — rendering with cached data");
         }
-
-        setCpuFrequencyMhz(80);
     } else {
         LOG_INFO("LayoutManager", "No widgets need network — skipping WiFi entirely");
     }
 
-    // Render all regions (WiFi is off, CPU at 80MHz)
+    // Render all regions (WiFi may still be active for image streaming)
     if (!debugModeEnabled) {
         displayManager->clear();
     }
 
     renderAllRegions();
+
+    // Now disconnect WiFi and drop CPU after rendering is complete
+    if (wifiConnected) {
+        LOG_INFO("LayoutManager", "Rendering complete — disconnecting WiFi");
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+    }
+    setCpuFrequencyMhz(80);
 
     if (debugModeEnabled) {
         displayManager->showDebugMessage("Update complete");
