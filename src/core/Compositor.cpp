@@ -325,37 +325,9 @@ bool Compositor::fillRect(int x, int y, int w, int h, uint8_t color) {
 }
 
 bool Compositor::markRegionChanged(const LayoutRegion& region) {
-    // Validate region bounds
-    if (!validateRegion(region)) {
-        LayoutRegion correctedRegion = correctInvalidRegion(region);
-        if (correctedRegion.getWidth() <= 0 || correctedRegion.getHeight() <= 0) {
-            setError(CompositorError::InvalidRegion);
-            return false;
-        }
-        return markRegionChanged(correctedRegion);
-    }
-
-    // Clamp region to surface bounds
-    LayoutRegion clampedRegion = clampRegionToBounds(region);
-
-    // Skip if region is completely outside surface
-    if (clampedRegion.getWidth() <= 0 || clampedRegion.getHeight() <= 0) {
-        return true; // Not an error, just nothing to mark
-    }
-
-    try {
-        // Add to changed areas list
-        changedAreas.push_back(clampedRegion);
-        hasChanges = true;
-
-        // Region optimization deferred to getChangedRegions() / partialDisplayToInkplate()
-        // to avoid creating temporary LayoutRegion objects that allocate on internal heap
-        return true;
-    } catch (...) {
-        setError(CompositorError::MemoryAllocationFailed);
-        logError("markRegionChanged", lastError);
-        return false;
-    }
+    // Dirty region tracking disabled — full renders only for now
+    hasChanges = true;
+    return true;
 }
 
 void Compositor::resetChangeTracking() {

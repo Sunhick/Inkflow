@@ -505,26 +505,8 @@ void LayoutManager::forceWidgetDataUpdate() {
 }
 
 void LayoutManager::handleImmediateUpdates() {
-    // Handle only time-sensitive updates that can't wait for deep sleep cycle
-    bool needsImmediateRender = false;
-
-    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
-        LayoutRegion* region = it->get();
-        if (region) {
-            for (size_t i = 0; i < region->getWidgetCount(); ++i) {
-                Widget* widget = region->getWidget(i);
-                if (widget && widget->needsImmediateUpdate()) {
-                    widget->update(); // Quick update for time-sensitive widgets
-                    needsImmediateRender = true;
-                }
-            }
-        }
-    }
-
-    if (needsImmediateRender) {
-        LOG_DEBUG("LayoutManager", "Performing immediate render for time-sensitive updates");
-        renderChangedRegions();
-    }
+    // Partial updates disabled — always do full render for stability
+    // TODO: re-enable once partial update path is validated
 }
 
 void LayoutManager::checkDeepSleepConditions() {
@@ -557,22 +539,8 @@ void LayoutManager::prepareForDeepSleep() {
 }
 
 void LayoutManager::handleWidgetUpdates() {
-    // Check if any regions need updates
-    bool needsUpdate = false;
-
-    for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
-        LayoutRegion* region = it->get();
-        if (region && region->needsUpdate()) {
-            needsUpdate = true;
-            break;
-        }
-    }
-
-    // Only update display if regions actually need updating
-    if (needsUpdate) {
-        LOG_DEBUG("LayoutManager", "Rendering updated regions...");
-        renderChangedRegions(); // Use partial update for better performance
-    }
+    // Partial updates disabled — use full render
+    renderAllRegions();
 }
 
 bool LayoutManager::ensureConnectivity() {
@@ -959,16 +927,8 @@ void LayoutManager::forceTimeAndBatteryUpdate() {
     }
 
     if (hasTimeOrBatteryUpdates) {
-        LOG_INFO("LayoutManager", "Time/battery widgets found - performing partial compositor update");
-
-        // Use compositor partial rendering for efficient updates
-        if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
-            LOG_DEBUG("LayoutManager", "Using compositor for partial time/battery update");
-            renderChangedRegions(); // This will use compositor partial rendering
-        } else {
-            LOG_DEBUG("LayoutManager", "Compositor not available - using direct partial rendering for time/battery update");
-            renderChangedRegions(); // This will fall back to direct rendering
-        }
+        LOG_INFO("LayoutManager", "Time/battery widgets found - performing full render");
+        renderAllRegions();
     } else {
         LOG_DEBUG("LayoutManager", "No time or battery widgets found - skipping update");
     }
