@@ -324,6 +324,11 @@ void LayoutManager::initializeComponents() {
     const AppConfig& initConfig = configManager->getConfig();
     displayManager->initialize(initConfig.displayMode);
 
+    // Log PSRAM availability (initialized by display.begin())
+    LOG_INFO("LayoutManager", "PSRAM — Total: %zu bytes, Free: %zu bytes",
+             ESP.getPsramSize(), ESP.getFreePsram());
+    LOG_INFO("LayoutManager", "Internal heap — Free: %zu bytes", ESP.getFreeHeap());
+
     // Now that display.begin() has run and PSRAM is available, init compositor
     if (compositor && compositor->initialize()) {
         displayManager->setCompositor(compositor);
