@@ -1,17 +1,9 @@
 {
-  "Wifi": { "SSID": "YOUR_WIFI_SSID", "Password": "YOUR_WIFI_PASSWORD" },
-  "Server": { "Url": "http://example.com/image.jpg" },
-  "LayoutPreset": "sidebar-right",
-  "Widgets": [
-    { "type": "NameWidget",    "region": "name-region",     "familyName": "Family" },
-    { "type": "TimeWidget",    "region": "datetime-region", "timeUpdateMs": 900000 },
-    { "type": "WeatherWidget", "region": "weather-region",  "latitude": "47.6062", "longitude": "-122.3321", "city": "Seattle", "units": "fahrenheit" },
-    { "type": "BatteryWidget", "region": "battery-region",  "batteryUpdateMs": 900000 },
-    { "type": "ImageWidget",   "region": "image-region",    "imageRefreshMs": 86400000 },
-    { "type": "LayoutWidget",  "showRegionBorders": true, "showSeparators": true, "borderColor": 0, "separatorColor": 0, "borderThickness": 1, "separatorThickness": 1 }
-  ],
-  "Display": { "Width": 1200, "Height": 825, "UsePartialUpdates": false },
-  "Hardware": { "WakeButtonPin": 36 },
-  "Power": { "EnableDeepSleep": true, "DeepSleepThresholdMs": 180000 },
-  "Debug": { "ShowOnScreen": false }
+  "Layout": {
+    "image-region":    { "X": 0,   "Y": 0,   "Width": 960, "Height": 825 },
+    "name-region":     { "X": 960, "Y": 0,   "Width": 240, "Height": 206 },
+    "datetime-region": { "X": 960, "Y": 206, "Width": 240, "Height": 206 },
+    "weather-region":  { "X": 960, "Y": 412, "Width": 240, "Height": 206 },
+    "battery-region":  { "X": 960, "Y": 618, "Width": 240, "Height": 207 }
+  }
 }

@@ -160,14 +160,16 @@ bool ConfigManager::loadConfig() {
         }
     }
 
-    // Parse layout regions — use preset if specified, otherwise use manual Layout
+    // Parse layout regions — use preset file if specified, otherwise use manual Layout
     config.regions.clear();
     String layoutPreset = doc["LayoutPreset"] | "";
 
     if (layoutPreset.length() > 0 && !doc.containsKey("Layout")) {
-        // Apply preset layout
-        LOG_INFO("ConfigManager", "Applying layout preset: %s", layoutPreset.c_str());
-        applyPreset(layoutPreset, config.regions, config.displayWidth, config.displayHeight);
+        // Load preset layout from SPIFFS file
+        LOG_INFO("ConfigManager", "Loading layout preset: %s", layoutPreset.c_str());
+        if (!loadPresetFromFile(layoutPreset)) {
+            LOG_ERROR("ConfigManager", "Failed to load preset '%s', no regions configured", layoutPreset.c_str());
+        }
     } else {
         // Parse manual layout regions (overrides preset if both exist)
         JsonObject layout = doc["Layout"];
@@ -402,153 +404,50 @@ RegionConfig ConfigManager::getRegionConfig(const String& regionId) const {
     return defaultConfig;
 }
 
-// ============================================================
-// Layout Presets for Inkplate 10 (1200x825)
-// ============================================================
-//
-// All presets use these standard region IDs so widgets can
-// reference them in config.json:
-//   name-region, datetime-region, weather-region,
-//   battery-region, image-region
-//
-// Presets: sidebar-left, sidebar-right, dashboard,
-//          photo-frame, info-panel, calendar
+bool ConfigManager::loadPresetFromFile(const String& presetName) {
+    String path = "/presets/" + presetName + ".json";
+    LOG_INFO("ConfigManager", "Loading preset file: %s", path.c_str());
 
-void ConfigManager::applyPreset(const String& presetName,
-                                std::map<String, RegionConfig>& regions,
-                                int w, int h) {
-    if (presetName == "sidebar-left")       presetSidebarLeft(regions, w, h);
-    else if (presetName == "sidebar-right") presetSidebarRight(regions, w, h);
-    else if (presetName == "dashboard")     presetDashboard(regions, w, h);
-    else if (presetName == "photo-frame")   presetPhotoFrame(regions, w, h);
-    else if (presetName == "info-panel")    presetInfoPanel(regions, w, h);
-    else if (presetName == "calendar")      presetCalendar(regions, w, h);
-    else {
-        LOG_WARN("ConfigManager", "Unknown layout preset '%s', falling back to sidebar-left",
-                 presetName.c_str());
-        presetSidebarLeft(regions, w, h);
+    if (!SPIFFS.exists(path.c_str())) {
+        LOG_ERROR("ConfigManager", "Preset file not found: %s", path.c_str());
+        return false;
     }
-}
 
-// ┌──────────┬─────────────────────────────┐
-// │  name    │                             │
-// ├──────────┤                             │
-// │  time    │         image               │
-// ├──────────┤                             │
-// │  weather │                             │
-// ├──────────┤                             │
-// │  battery │                             │
-// └──────────┴─────────────────────────────┘
-void ConfigManager::presetSidebarLeft(std::map<String, RegionConfig>& regions, int w, int h) {
-    int sidebar = w / 5; // 20% sidebar
-    int rowH = h / 4;
+    fs::File file = SPIFFS.open(path.c_str(), "r");
+    if (!file) {
+        LOG_ERROR("ConfigManager", "Failed to open preset file: %s", path.c_str());
+        return false;
+    }
 
-    regions["name-region"]     = {0, 0,          sidebar, rowH};
-    regions["datetime-region"] = {0, rowH,       sidebar, rowH};
-    regions["weather-region"]  = {0, rowH * 2,   sidebar, rowH};
-    regions["battery-region"]  = {0, rowH * 3,   sidebar, h - rowH * 3};
-    regions["image-region"]    = {sidebar, 0,    w - sidebar, h};
-}
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
 
-// ┌─────────────────────────────┬──────────┐
-// │                             │  name    │
-// │                             ├──────────┤
-// │         image               │  time    │
-// │                             ├──────────┤
-// │                             │  weather │
-// │                             ├──────────┤
-// │                             │  battery │
-// └─────────────────────────────┴──────────┘
-void ConfigManager::presetSidebarRight(std::map<String, RegionConfig>& regions, int w, int h) {
-    int sidebar = w / 5;
-    int mainW = w - sidebar;
-    int rowH = h / 4;
+    if (error) {
+        LOG_ERROR("ConfigManager", "Failed to parse preset file: %s", error.c_str());
+        return false;
+    }
 
-    regions["image-region"]    = {0, 0,          mainW, h};
-    regions["name-region"]     = {mainW, 0,      sidebar, rowH};
-    regions["datetime-region"] = {mainW, rowH,   sidebar, rowH};
-    regions["weather-region"]  = {mainW, rowH*2, sidebar, rowH};
-    regions["battery-region"]  = {mainW, rowH*3, sidebar, h - rowH * 3};
-}
+    // Parse regions from the preset file's Layout section
+    JsonObject layout = doc["Layout"];
+    if (layout.isNull()) {
+        LOG_ERROR("ConfigManager", "Preset file has no Layout section");
+        return false;
+    }
 
-// ┌───────────────┬───────────────┐
-// │  name         │  time         │
-// ├───────────────┼───────────────┤
-// │  weather      │  battery      │
-// ├───────────────┴───────────────┤
-// │           image               │
-// └───────────────────────────────┘
-void ConfigManager::presetDashboard(std::map<String, RegionConfig>& regions, int w, int h) {
-    int halfW = w / 2;
-    int topH = h / 4;
-    int imgH = h - topH * 2;
+    for (JsonPair regionPair : layout) {
+        String regionId = regionPair.key().c_str();
+        JsonObject regionObj = regionPair.value();
 
-    regions["name-region"]     = {0,     0,    halfW, topH};
-    regions["datetime-region"] = {halfW, 0,    halfW, topH};
-    regions["weather-region"]  = {0,     topH, halfW, topH};
-    regions["battery-region"]  = {halfW, topH, halfW, topH};
-    regions["image-region"]    = {0, topH * 2, w,     imgH};
-}
+        RegionConfig regionConfig;
+        regionConfig.x = regionObj["X"] | 0;
+        regionConfig.y = regionObj["Y"] | 0;
+        regionConfig.width = regionObj["Width"] | 300;
+        regionConfig.height = regionObj["Height"] | 300;
 
-// ┌───────────────────────────────┐
-// │                               │
-// │           image               │
-// │                               │
-// ├─────┬─────┬─────────┬────────┤
-// │time │batt │ weather  │ name   │
-// └─────┴─────┴─────────┴────────┘
-void ConfigManager::presetPhotoFrame(std::map<String, RegionConfig>& regions, int w, int h) {
-    int barH = h / 8;       // Thin bottom bar (~103px)
-    int imgH = h - barH;
-    int col = w / 4;
+        config.regions[regionId] = regionConfig;
+    }
 
-    regions["image-region"]    = {0, 0,       w,     imgH};
-    regions["datetime-region"] = {0,     imgH, col,   barH};
-    regions["battery-region"]  = {col,   imgH, col,   barH};
-    regions["weather-region"]  = {col*2, imgH, col,   barH};
-    regions["name-region"]     = {col*3, imgH, w - col*3, barH};
-}
-
-// ┌──────────┬──────────┬──────────┐
-// │  name    │  time    │ battery  │
-// ├──────────┴──────────┴──────────┤
-// │           weather              │
-// ├────────────────────────────────┤
-// │           image                │
-// └────────────────────────────────┘
-void ConfigManager::presetInfoPanel(std::map<String, RegionConfig>& regions, int w, int h) {
-    int topH = h / 6;       // ~137px header
-    int midH = h / 4;       // ~206px weather
-    int imgH = h - topH - midH;
-    int col3 = w / 3;
-
-    regions["name-region"]     = {0,      0,    col3,       topH};
-    regions["datetime-region"] = {col3,   0,    col3,       topH};
-    regions["battery-region"]  = {col3*2, 0,    w - col3*2, topH};
-    regions["weather-region"]  = {0,      topH, w,          midH};
-    regions["image-region"]    = {0, topH + midH, w,        imgH};
-}
-
-// ┌──────────┬─────────────────────┐
-// │  name    │                     │
-// ├──────────┤                     │
-// │  time    │      image          │
-// ├──────────┤                     │
-// │  weather │                     │
-// ├──────────┤                     │
-// │          │                     │
-// │ battery  │                     │
-// └──────────┴─────────────────────┘
-void ConfigManager::presetCalendar(std::map<String, RegionConfig>& regions, int w, int h) {
-    int sidebar = w * 3 / 10; // 30% sidebar — wider for text-heavy widgets
-    int nameH = h / 6;
-    int timeH = h / 3;
-    int weatherH = h / 4;
-    int battH = h - nameH - timeH - weatherH;
-
-    regions["name-region"]     = {0, 0,                          sidebar, nameH};
-    regions["datetime-region"] = {0, nameH,                      sidebar, timeH};
-    regions["weather-region"]  = {0, nameH + timeH,              sidebar, weatherH};
-    regions["battery-region"]  = {0, nameH + timeH + weatherH,   sidebar, battH};
-    regions["image-region"]    = {sidebar, 0,                    w - sidebar, h};
+    LOG_INFO("ConfigManager", "Loaded %d regions from preset '%s'", config.regions.size(), presetName.c_str());
+    return true;
 }

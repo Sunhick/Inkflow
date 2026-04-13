@@ -183,10 +183,6 @@ public:
     const std::map<String, RegionConfig>& getRegions() const { return config.regions; }
     RegionConfig getRegionConfig(const String& regionId) const;
 
-    // Layout presets
-    static void applyPreset(const String& presetName, std::map<String, RegionConfig>& regions,
-                            int displayWidth, int displayHeight);
-
     // Configuration validation
     bool isConfigured() const;
     String getConfigurationError() const;
@@ -197,11 +193,6 @@ private:
     bool configFileExists;
     void setDefaults();
 
-    // Preset layout generators (1200x825 Inkplate 10)
-    static void presetSidebarLeft(std::map<String, RegionConfig>& regions, int w, int h);
-    static void presetSidebarRight(std::map<String, RegionConfig>& regions, int w, int h);
-    static void presetDashboard(std::map<String, RegionConfig>& regions, int w, int h);
-    static void presetPhotoFrame(std::map<String, RegionConfig>& regions, int w, int h);
-    static void presetInfoPanel(std::map<String, RegionConfig>& regions, int w, int h);
-    static void presetCalendar(std::map<String, RegionConfig>& regions, int w, int h);
+    // Load layout preset from SPIFFS file /presets/<name>.json
+    bool loadPresetFromFile(const String& presetName);
 };
