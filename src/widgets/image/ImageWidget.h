@@ -32,7 +32,7 @@ public:
     int getConsecutiveFailures() const { return consecutiveFailures; }
 
     // ImageWidget needs WiFi during render (streams JPEG directly to display)
-    bool needsNetworkFetch() const override { return shouldUpdate(); }
+    bool needsNetworkFetch() const override;
 
 private:
     const char* imageUrl;

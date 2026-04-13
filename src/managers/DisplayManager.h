@@ -10,7 +10,7 @@ class DisplayManager {
 public:
     DisplayManager(Inkplate &display);
 
-    void initialize();
+    void initialize(int displayMode = 3); // 1 = 1-bit B&W, 3 = 3-bit grayscale
     void showStatus(const char* message, const char* networkName = nullptr, const char* ipAddress = nullptr);
     void showError(const char* title, const char* message, const char* wifiStatus = nullptr);
     void showImageError(const char* url, int failures, int retrySeconds, const char* ipAddress, int signalStrength);

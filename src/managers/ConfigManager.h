@@ -143,6 +143,7 @@ struct AppConfig {
     int displayWidth;
     int displayHeight;
     bool usePartialUpdates;
+    int displayMode; // 1 = 1-bit B&W, 3 = 3-bit grayscale (default)
 
     // Hardware Configuration
     int wakeButtonPin;

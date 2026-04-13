@@ -326,7 +326,8 @@ LayoutRegion* LayoutManager::getRegion(size_t index) const {
 void LayoutManager::initializeComponents() {
     LOG_INFO("LayoutManager", "Initializing components...");
 
-    displayManager->initialize();
+    const AppConfig& initConfig = configManager->getConfig();
+    displayManager->initialize(initConfig.displayMode);
 
     // Initialize widgets in all regions
     for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
@@ -453,6 +454,9 @@ void LayoutManager::performScheduledUpdates() {
     if (!debugModeEnabled) {
         displayManager->clear();
     }
+
+    LOG_INFO("LayoutManager", "Starting render — WiFi status: %s",
+             WiFi.status() == WL_CONNECTED ? "connected" : "disconnected");
 
     renderAllRegions();
 

@@ -4,10 +4,12 @@
 
 DisplayManager::DisplayManager(Inkplate &display) : display(display), preferredDisplayMode(INKPLATE_3BIT), compositor(nullptr), debugModeEnabled(false), debugLineCount(0), debugStartY(700) {}
 
-void DisplayManager::initialize() {
+void DisplayManager::initialize(int displayMode) {
     display.begin();
-    preferredDisplayMode = INKPLATE_3BIT;
-    display.setDisplayMode(preferredDisplayMode); // 3-bit mode for better grayscale
+    preferredDisplayMode = (displayMode == 1) ? INKPLATE_1BIT : INKPLATE_3BIT;
+    display.setDisplayMode(preferredDisplayMode);
+    LOG_INFO("DisplayManager", "Display initialized in %s mode",
+             (preferredDisplayMode == INKPLATE_1BIT) ? "1-bit B&W" : "3-bit grayscale");
 
     // Enable text smoothing and wrapping for better rendering
     display.setTextWrap(true);

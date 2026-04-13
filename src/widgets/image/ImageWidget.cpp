@@ -384,3 +384,8 @@ void ImageWidget::showDiagnosticsInRegionToCompositor(Compositor& compositor, co
 WidgetType ImageWidget::getWidgetType() const {
     return WidgetTypeTraits<ImageWidget>::type();
 }
+
+bool ImageWidget::needsNetworkFetch() const {
+    unsigned long currentTime = millis();
+    return (currentTime - lastImageUpdate >= IMAGE_UPDATE_INTERVAL) || (lastImageUpdate == 0);
+}
