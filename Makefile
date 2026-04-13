@@ -4,6 +4,7 @@
 .DEFAULT_GOAL := build
 
 # Default values (can be overridden)
+PORT ?=
 WIFI_SSID ?= "YOUR_SSID_HERE"
 WIFI_PASSWORD ?= "YOUR_PASSWORD_HERE"
 SERVER_URL ?= "http://SERVER_URL_HERE/image.jpg"
@@ -14,6 +15,15 @@ WEATHER_UNITS ?= "fahrenheit"
 
 # Build flags with configuration
 BUILD_FLAGS = -DWIFI_SSID='"$(WIFI_SSID)"' -DWIFI_PASSWORD='"$(WIFI_PASSWORD)"' -DSERVER_URL='"$(SERVER_URL)"' -DREFRESH_MS=$(REFRESH_MS)
+
+# Port flag for upload/monitor (auto-detect if not set)
+ifdef PORT
+  PORT_FLAG = --upload-port $(PORT)
+  MONITOR_PORT_FLAG = --port $(PORT)
+else
+  PORT_FLAG =
+  MONITOR_PORT_FLAG =
+endif
 
 # Build the project
 build:
@@ -27,12 +37,12 @@ setup-config:
 
 # Upload filesystem (SPIFFS) with config file
 upload-fs:
-	pio run --target uploadfs --environment esp32
+	pio run --target uploadfs --environment esp32 $(PORT_FLAG)
 
 # Upload to device (requires firmware to be built)
 upload:
 	@if [ ! -f .pio/build/esp32/firmware.bin ]; then echo "Error: Firmware not built. Run 'make build' first."; exit 1; fi
-	pio run --target upload --environment esp32
+	pio run --target upload --environment esp32 $(PORT_FLAG)
 
 # Upload both filesystem and firmware
 upload-all: upload-fs upload
@@ -49,7 +59,7 @@ deploy-fs: setup-config upload-all
 
 # Monitor serial output
 monitor:
-	pio device monitor
+	pio device monitor $(MONITOR_PORT_FLAG)
 
 # Upload and immediately start monitoring
 upload-monitor: upload monitor
@@ -100,6 +110,7 @@ help:
 	@echo "  help          - Show this help"
 	@echo ""
 	@echo "Configuration variables (can be set on command line):"
+	@echo "  PORT            - Serial port (default: auto-detect)"
 	@echo "  WIFI_SSID       - WiFi network name (default: YOUR_SSID_HERE)"
 	@echo "  WIFI_PASSWORD   - WiFi password (default: YOUR_PASSWORD_HERE)"
 	@echo "  SERVER_URL      - Image URL (default: http://SERVER_URL_HERE/image.jpg)"
