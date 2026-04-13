@@ -1,6 +1,7 @@
 #include "BatteryWidget.h"
 #include "../../core/Logger.h"
 #include "../../core/Compositor.h"
+#include "../../core/DisplayList.h"
 #include "../../managers/ConfigManager.h"
 
 BatteryWidget::BatteryWidget(Inkplate& display)
@@ -189,4 +190,41 @@ void BatteryWidget::drawBatteryIconToCompositor(Compositor& compositor, int x, i
 }
 WidgetType BatteryWidget::getWidgetType() const {
     return WidgetTypeTraits<BatteryWidget>::type();
+}
+
+void BatteryWidget::renderToDisplayList(DisplayList& dl, const LayoutRegion& region) {
+    int percentage = getBatteryPercentage();
+    float voltage = getBatteryVoltage();
+    int margin = 10;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
+
+    dl.setCursor(labelX, labelY + 20);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.print("BATTERY");
+
+    dl.setCursor(labelX, labelY + 60);
+    dl.setTextSize(3);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.printf("%d%%", percentage);
+
+    // Battery icon
+    int iconW = 40, iconH = 20;
+    int iconX = labelX, iconY = labelY + 100;
+    dl.drawRect(iconX, iconY, iconW, iconH, 0);
+    dl.drawRect(iconX - 1, iconY - 1, iconW + 2, iconH + 2, 0);
+    dl.fillRect(iconX + iconW, iconY + 4, 4, iconH - 8, 0);
+    int fillW = ((iconW - 4) * percentage) / 100;
+    if (fillW > 0) dl.fillRect(iconX + 2, iconY + 2, fillW, iconH - 4, 0);
+
+    dl.setCursor(labelX, labelY + 130);
+    dl.setTextSize(1);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.printf("%.2fV", voltage);
+
+    lastBatteryUpdate = millis();
 }

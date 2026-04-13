@@ -1,5 +1,6 @@
 #include "LayoutManager.h"
 #include "../core/Logger.h"
+#include "../core/DisplayList.h"
 #include "../widgets/image/ImageWidget.h"
 #include "../widgets/battery/BatteryWidget.h"
 #include "../widgets/time/TimeWidget.h"
@@ -329,12 +330,14 @@ void LayoutManager::initializeComponents() {
              ESP.getPsramSize(), ESP.getFreePsram());
     LOG_INFO("LayoutManager", "Internal heap — Free: %zu bytes", ESP.getFreeHeap());
 
-    // Compositor disabled — widget renderToCompositor() methods only draw placeholder
-    // rectangles, not actual text. The compositor lacks a font rasterizer, so widgets
-    // can't render readable content to it. Direct rendering uses display.print() which
-    // renders real text via the Inkplate/Adafruit GFX library.
-    // TODO: Add text rendering to compositor surface to enable compositor path.
-    LOG_INFO("LayoutManager", "Using direct rendering (compositor text rendering not implemented)");
+    // Initialize compositor — widgets now use DisplayList to record draw commands
+    // which are replayed to the actual display via Inkplate/Adafruit GFX.
+    if (compositor && compositor->initialize()) {
+        displayManager->setCompositor(compositor);
+        LOG_INFO("LayoutManager", "Compositor initialized — using display list rendering");
+    } else {
+        LOG_WARN("LayoutManager", "Compositor init failed, using direct rendering");
+    }
 
     // Initialize widgets in all regions
     for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
@@ -604,28 +607,30 @@ void LayoutManager::renderAllRegions() {
                     continue;
                 }
 
-                // Render all widgets in the region to compositor with error isolation
+                // Render all widgets via DisplayList — records commands then replays to display
                 for (size_t i = 0; i < region->getWidgetCount(); ++i) {
                     Widget* widget = region->getWidget(i);
                     if (widget) {
                         try {
-                            widget->renderToCompositor(*compositor, *region);
+                            DisplayList dl;
+                            widget->renderToDisplayList(dl, *region);
+                            dl.replayTo(display);
                         } catch (...) {
                             LOG_ERROR("LayoutManager", "Widget rendering failed for widget %zu in region (%d,%d)",
                                       i, region->getX(), region->getY());
-                            // Continue with other widgets
                         }
                     }
                 }
 
-                // Handle legacy widget if present with error isolation
+                // Handle legacy widget
                 if (region->getLegacyWidget()) {
                     try {
-                        region->getLegacyWidget()->renderToCompositor(*compositor, *region);
+                        DisplayList dl;
+                        region->getLegacyWidget()->renderToDisplayList(dl, *region);
+                        dl.replayTo(display);
                     } catch (...) {
                         LOG_ERROR("LayoutManager", "Legacy widget rendering failed in region (%d,%d)",
                                   region->getX(), region->getY());
-                        // Continue with other regions
                     }
                 }
 
@@ -634,11 +639,13 @@ void LayoutManager::renderAllRegions() {
             }
         }
 
-        // Render global layout elements (borders, separators) to compositor with error handling
+        // Render global layout elements via DisplayList
         if (layoutWidget) {
             try {
                 LayoutRegion fullDisplayRegion(0, 0, display.width(), display.height());
-                layoutWidget->renderToCompositor(*compositor, fullDisplayRegion);
+                DisplayList dl;
+                layoutWidget->renderToDisplayList(dl, fullDisplayRegion);
+                dl.replayTo(display);
             } catch (...) {
                 LOG_ERROR("LayoutManager", "Layout widget rendering failed");
                 compositorRenderingSuccessful = false;

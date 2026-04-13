@@ -32,6 +32,9 @@ public:
     void fetchData() override;
     bool needsNetworkFetch() const override;
 
+    // Display list rendering
+    void renderToDisplayList(DisplayList& dl, const LayoutRegion& region) override;
+
 private:
     unsigned long lastTimeUpdate;
     bool timeInitialized;

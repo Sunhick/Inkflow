@@ -34,9 +34,12 @@ public:
     void fetchWeatherData();
     bool isWeatherDataValid() const;
 
-    // Network data fetching — pre-fetch weather data while WiFi is active
+    // Network data fetching
     void fetchData() override;
     bool needsNetworkFetch() const override;
+
+    // Display list rendering
+    void renderToDisplayList(DisplayList& dl, const LayoutRegion& region) override;
 
 private:
     unsigned long lastWeatherUpdate;

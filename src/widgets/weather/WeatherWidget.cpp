@@ -1,6 +1,7 @@
 #include "WeatherWidget.h"
 #include "../../core/Logger.h"
 #include "../../core/Compositor.h"
+#include "../../core/DisplayList.h"
 #include "../../managers/ConfigManager.h"
 
 const char* WeatherWidget::WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
@@ -316,4 +317,54 @@ void WeatherWidget::drawWeatherDisplayToCompositor(Compositor& compositor, const
 }
 WidgetType WeatherWidget::getWidgetType() const {
     return WidgetTypeTraits<WeatherWidget>::type();
+}
+
+void WeatherWidget::renderToDisplayList(DisplayList& dl, const LayoutRegion& region) {
+    int margin = 10;
+    int labelX = region.getX() + margin;
+    int labelY = region.getY() + margin;
+
+    dl.setCursor(labelX, labelY);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(true);
+    dl.print("WEATHER");
+
+    dl.setCursor(labelX, labelY + 25);
+    dl.setTextSize(3);
+    dl.setTextColor(0);
+    dl.setTextWrap(true);
+    dl.print(weatherCity);
+
+    if (!currentWeather.isValid) {
+        dl.setCursor(labelX, labelY + 55);
+        dl.setTextSize(2);
+        dl.setTextColor(0);
+        dl.print("No Data");
+        dl.setCursor(labelX, labelY + 85);
+        dl.setTextSize(1);
+        dl.setTextColor(0);
+        dl.print("Check WiFi");
+        return;
+    }
+
+    dl.setCursor(labelX, labelY + 55);
+    dl.setTextSize(4);
+    dl.setTextColor(0);
+    dl.setTextWrap(true);
+    dl.printf("%dF", (int)currentWeather.temperature);
+
+    dl.setCursor(labelX, labelY + 105);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(true);
+    dl.print(currentWeather.description);
+
+    dl.setCursor(labelX, labelY + 135);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(true);
+    dl.printf("Rain: %d%%", currentWeather.precipitationProbability);
+
+    lastWeatherUpdate = millis();
 }

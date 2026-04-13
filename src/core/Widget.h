@@ -3,6 +3,7 @@
 
 #include <Inkplate.h>
 #include "LayoutRegion.h"
+#include "DisplayList.h"
 
 // Forward declaration to avoid circular dependency
 class Compositor;
@@ -23,31 +24,35 @@ public:
     // Widget type identification (must be implemented by each widget)
     virtual WidgetType getWidgetType() const = 0;
 
-    // New compositor-based rendering method (default implementation for backward compatibility)
+    // Compositor rendering — records draw commands to a DisplayList.
+    // Default implementation delegates to renderToDisplayList().
     virtual void renderToCompositor(Compositor& compositor, const LayoutRegion& region);
+
+    // Display list rendering — override to record draw commands.
+    // Default implementation calls render() for backward compatibility.
+    virtual void renderToDisplayList(DisplayList& dl, const LayoutRegion& region) {
+        render(region); // fallback: draw directly to display
+    }
 
     // Virtual method for layout change notifications
     virtual void onRegionChanged(const LayoutRegion& oldRegion, const LayoutRegion& newRegion) {}
 
     // Deep sleep optimization methods
     virtual void forceUpdate();
-    virtual bool needsImmediateUpdate() const { return false; } // Most widgets don't need immediate updates
+    virtual bool needsImmediateUpdate() const { return false; }
     virtual void update();
 
-    // Network data fetching — called while WiFi is active, before rendering
-    // Override in widgets that need network access (weather, time/NTP, etc.)
+    // Network data fetching
     virtual void fetchData() {}
     virtual bool needsNetworkFetch() const { return false; }
 
 protected:
     Inkplate& display;
 
-    // Helper methods for widgets (existing - for backward compatibility)
     void clearRegion(const LayoutRegion& region);
     void setClipRegion(const LayoutRegion& region);
     void resetClipRegion();
 
-    // New compositor helper methods
     void clearRegionOnCompositor(Compositor& compositor, const LayoutRegion& region);
     void setClipRegionOnCompositor(Compositor& compositor, const LayoutRegion& region);
 };

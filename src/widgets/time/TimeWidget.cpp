@@ -1,6 +1,7 @@
 #include "TimeWidget.h"
 #include "../../core/Logger.h"
 #include "../../core/Compositor.h"
+#include "../../core/DisplayList.h"
 #include "../../managers/ConfigManager.h"
 
 const char* TimeWidget::NTP_SERVER = "pool.ntp.org";
@@ -254,44 +255,54 @@ bool TimeWidget::needsNetworkFetch() const {
     return elapsed >= NTP_RESYNC_INTERVAL_SEC;
 }
 
-void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
-    LOG_DEBUG("TimeWidget", "drawTimeDisplayToCompositor() - Drawing time to compositor");
-
+void TimeWidget::renderToDisplayList(DisplayList& dl, const LayoutRegion& region) {
     int margin = 10;
     int labelX = region.getX() + margin;
     int labelY = region.getY() + margin;
 
-    // For compositor rendering, we need to draw text as filled rectangles
-    // This is a simplified implementation - in a full implementation you'd want
-    // to render actual text to the compositor surface
-
-    // Draw "DATE TIME" label area (simplified as a rectangle)
-    compositor.fillRect(labelX, labelY + 15, 120, 20, 0); // Black rectangle for label
-    LOG_DEBUG("TimeWidget", "Drew DATE TIME label area to compositor");
+    dl.setCursor(labelX, labelY + 20);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.print("DATE TIME");
 
     if (!timeInitialized) {
-        // Draw "SYNC FAIL" area
-        compositor.fillRect(labelX, labelY + 55, 100, 20, 0); // Black rectangle
-        LOG_WARN("TimeWidget", "Drew SYNC FAIL area to compositor");
+        dl.setCursor(labelX, labelY + 60);
+        dl.setTextSize(2);
+        dl.setTextColor(0);
+        dl.setTextWrap(false);
+        dl.print("SYNC FAIL");
         return;
     }
 
-    // Draw time area (larger rectangle)
-    compositor.fillRect(labelX, labelY + 50, 180, 30, 0); // Black rectangle for time
-    LOG_DEBUG("TimeWidget", "Drew time area to compositor");
+    dl.setCursor(labelX, labelY + 60);
+    dl.setTextSize(3);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.print(getFormattedTime());
 
-    // Draw date area
-    compositor.fillRect(labelX, labelY + 100, 200, 20, 0); // Black rectangle for date
-    LOG_DEBUG("TimeWidget", "Drew date area to compositor");
+    dl.setCursor(labelX, labelY + 110);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.print(getFormattedDate());
 
-    // Draw day area
-    compositor.fillRect(labelX, labelY + 130, 150, 20, 0); // Black rectangle for day
-    LOG_DEBUG("TimeWidget", "Drew day area to compositor");
+    dl.setCursor(labelX, labelY + 140);
+    dl.setTextSize(2);
+    dl.setTextColor(0);
+    dl.setTextWrap(false);
+    dl.print(getDayOfWeek());
 
-    // Note: This is a simplified implementation. For proper text rendering to compositor,
-    // you would need to implement a text rendering system that draws to the compositor
-    // surface pixel by pixel, or use a graphics library that can render to a buffer.
+    lastTimeUpdate = millis();
 }
+
+void TimeWidget::drawTimeDisplayToCompositor(Compositor& compositor, const LayoutRegion& region) {
+    // Legacy — kept for backward compat, delegates to display list
+    DisplayList dl;
+    renderToDisplayList(dl, region);
+    dl.replayTo(display);
+}
+
 WidgetType TimeWidget::getWidgetType() const {
     return WidgetTypeTraits<TimeWidget>::type();
 }

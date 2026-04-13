@@ -23,6 +23,9 @@ public:
     float getBatteryVoltage();
     int getBatteryPercentage();
 
+    // Display list rendering
+    void renderToDisplayList(DisplayList& dl, const LayoutRegion& region) override;
+
 private:
     unsigned long lastBatteryUpdate;
     unsigned long batteryUpdateInterval;
