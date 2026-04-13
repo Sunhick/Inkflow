@@ -348,8 +348,8 @@ bool Compositor::markRegionChanged(const LayoutRegion& region) {
         changedAreas.push_back(clampedRegion);
         hasChanges = true;
 
-        // Optimize regions for partial updates
-        optimizeRegionsForPartialUpdate();
+        // Region optimization deferred to getChangedRegions() / partialDisplayToInkplate()
+        // to avoid creating temporary LayoutRegion objects that allocate on internal heap
         return true;
     } catch (...) {
         setError(CompositorError::MemoryAllocationFailed);

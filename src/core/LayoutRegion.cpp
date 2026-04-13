@@ -27,7 +27,9 @@ public:
 };
 
 LayoutRegion::LayoutRegion(int x, int y, int w, int h)
-    : x(x), y(y), width(w), height(h), impl(new LayoutRegionImpl()), legacyWidget(nullptr), isDirty(true) {
+    : x(x), y(y), width(w), height(h), impl(nullptr), legacyWidget(nullptr), isDirty(true) {
+    // impl is lazily allocated only when widgets are added — avoids internal heap
+    // allocation for temporary geometry-only LayoutRegion objects used by the compositor
 }
 
 LayoutRegion::~LayoutRegion() {
@@ -50,14 +52,15 @@ size_t LayoutRegion::addWidget(Widget* widget) {
         return SIZE_MAX; // Invalid index for null widget
     }
 
+    if (!impl) impl = new LayoutRegionImpl();
     impl->widgets.push_back(widget);
     markDirty();
     return impl->widgets.size() - 1; // Return index of added widget
 }
 
 bool LayoutRegion::removeWidget(size_t index) {
-    if (index >= impl->widgets.size()) {
-        return false; // Invalid index
+    if (!impl || index >= impl->widgets.size()) {
+        return false;
     }
 
     impl->widgets.erase(impl->widgets.begin() + index);
@@ -66,19 +69,19 @@ bool LayoutRegion::removeWidget(size_t index) {
 }
 
 Widget* LayoutRegion::getWidget(size_t index) const {
-    if (index >= impl->widgets.size()) {
-        return nullptr; // Invalid index
+    if (!impl || index >= impl->widgets.size()) {
+        return nullptr;
     }
 
     return impl->widgets[index];
 }
 
 size_t LayoutRegion::getWidgetCount() const {
-    return impl->widgets.size();
+    return impl ? impl->widgets.size() : 0;
 }
 
 void LayoutRegion::clearWidgets() {
-    if (!impl->widgets.empty()) {
+    if (impl && !impl->widgets.empty()) {
         impl->widgets.clear();
         markDirty();
     }
@@ -87,7 +90,7 @@ void LayoutRegion::clearWidgets() {
 
 
 void LayoutRegion::initializeWidgets() {
-    // Initialize all widgets in this region
+    if (!impl) return;
     for (size_t i = 0; i < impl->widgets.size(); ++i) {
         Widget* widget = impl->widgets[i];
         if (widget) {
