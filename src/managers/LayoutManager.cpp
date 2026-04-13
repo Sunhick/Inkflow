@@ -584,8 +584,9 @@ void LayoutManager::renderAllRegions() {
 
         bool compositorRenderingSuccessful = true;
 
-        // Clear the display buffer before rendering
-        display.clearDisplay();
+        // Clear display buffer to white (clearDisplay() fills with 0 which is black in 1-bit mode)
+        int whiteColor = (display.getDisplayMode() == INKPLATE_1BIT) ? 1 : 7;
+        display.fillRect(0, 0, display.width(), display.height(), whiteColor);
 
         // Render each region via DisplayList
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
