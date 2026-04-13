@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #ifndef UNIT_TEST
-#include <esp32-hal-psram.h>
+#include <esp_heap_caps.h>
 #endif
 
 Compositor::Compositor(int width, int height)
@@ -75,26 +75,28 @@ bool Compositor::initialize() {
 
     // Allocate virtual surface buffer in PSRAM (~1MB is too large for internal SRAM)
 #ifndef UNIT_TEST
-    virtualSurface = (uint8_t*)ps_malloc(surfaceSize);
+    virtualSurface = (uint8_t*)heap_caps_malloc(surfaceSize, MALLOC_CAP_SPIRAM);
 #else
     virtualSurface = new(std::nothrow) uint8_t[surfaceSize];
 #endif
     if (!virtualSurface) {
+        LOG_ERROR("Compositor", "Failed to allocate %zu bytes for virtual surface", surfaceSize);
         setError(CompositorError::MemoryAllocationFailed);
         logError("initialize", lastError);
         return false;
     }
+    LOG_INFO("Compositor", "Virtual surface allocated: %zu bytes in PSRAM", surfaceSize);
 
     // Allocate dirty regions tracking in PSRAM
     size_t dirtySize = static_cast<size_t>(surfaceWidth) * surfaceHeight;
 #ifndef UNIT_TEST
-    dirtyRegions = (bool*)ps_malloc(dirtySize * sizeof(bool));
+    dirtyRegions = (bool*)heap_caps_malloc(dirtySize * sizeof(bool), MALLOC_CAP_SPIRAM);
 #else
     dirtyRegions = new(std::nothrow) bool[dirtySize];
 #endif
     if (!dirtyRegions) {
 #ifndef UNIT_TEST
-        free(virtualSurface);
+        heap_caps_free(virtualSurface);
 #else
         delete[] virtualSurface;
 #endif
@@ -138,7 +140,7 @@ bool Compositor::initializeWithRetry(int maxAttempts) {
 void Compositor::cleanup() {
     if (virtualSurface) {
 #ifndef UNIT_TEST
-        free(virtualSurface);
+        heap_caps_free(virtualSurface);
 #else
         delete[] virtualSurface;
 #endif
@@ -147,7 +149,7 @@ void Compositor::cleanup() {
 
     if (dirtyRegions) {
 #ifndef UNIT_TEST
-        free(dirtyRegions);
+        heap_caps_free(dirtyRegions);
 #else
         delete[] dirtyRegions;
 #endif
