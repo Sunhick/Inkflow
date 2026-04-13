@@ -144,6 +144,7 @@ struct AppConfig {
     int displayHeight;
     bool usePartialUpdates;
     int displayMode; // 1 = 1-bit B&W, 3 = 3-bit grayscale (default)
+    bool enableCompositor; // false = direct rendering (stable), true = compositor (experimental)
 
     // Hardware Configuration
     int wakeButtonPin;

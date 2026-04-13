@@ -190,6 +190,7 @@ bool ConfigManager::loadConfig() {
     config.displayHeight = doc["Display"]["Height"] | 825;
     config.usePartialUpdates = doc["Display"]["UsePartialUpdates"] | false;
     config.displayMode = doc["Display"]["Mode"] | 3; // 1 = 1-bit B&W, 3 = 3-bit grayscale
+    config.enableCompositor = doc["Display"]["EnableCompositor"] | false;
 
     // Hardware configuration
     config.wakeButtonPin = doc["Hardware"]["WakeButtonPin"] | 36;
@@ -278,6 +279,7 @@ bool ConfigManager::saveConfig() {
     doc["Display"]["Height"] = config.displayHeight;
     doc["Display"]["UsePartialUpdates"] = config.usePartialUpdates;
     doc["Display"]["Mode"] = config.displayMode;
+    doc["Display"]["EnableCompositor"] = config.enableCompositor;
 
     // Hardware configuration
     doc["Hardware"]["WakeButtonPin"] = config.wakeButtonPin;
@@ -324,6 +326,7 @@ void ConfigManager::setDefaults() {
     config.displayHeight = 825;
     config.usePartialUpdates = false;
     config.displayMode = 3; // 3-bit grayscale default
+    config.enableCompositor = false;
 
     config.wakeButtonPin = 36;
 
