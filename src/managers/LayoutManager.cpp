@@ -329,13 +329,13 @@ void LayoutManager::initializeComponents() {
              ESP.getPsramSize(), ESP.getFreePsram());
     LOG_INFO("LayoutManager", "Internal heap — Free: %zu bytes", ESP.getFreeHeap());
 
-    // Initialize compositor now that PSRAM is available
-    if (compositor && compositor->initialize()) {
-        displayManager->setCompositor(compositor);
-        LOG_INFO("LayoutManager", "Compositor initialized and integrated with DisplayManager");
-    } else {
-        LOG_WARN("LayoutManager", "Compositor initialization failed, falling back to direct rendering");
-    }
+    // Compositor disabled — the Inkplate library corrupts internal heap canary values
+    // during display.begin(). Any subsequent internal heap malloc/free (used by Arduino
+    // String, display.print, etc.) triggers a heap poisoning assert. The compositor
+    // itself allocates in PSRAM, but widget rendering uses Arduino APIs that touch
+    // the internal heap. Direct rendering bypasses the compositor and works reliably.
+    // Re-enable when the Inkplate library fixes the heap overflow.
+    LOG_INFO("LayoutManager", "Using direct rendering (compositor disabled for heap stability)");
 
     // Initialize widgets in all regions
     for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
