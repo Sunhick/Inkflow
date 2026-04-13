@@ -329,13 +329,12 @@ void LayoutManager::initializeComponents() {
              ESP.getPsramSize(), ESP.getFreePsram());
     LOG_INFO("LayoutManager", "Internal heap — Free: %zu bytes", ESP.getFreeHeap());
 
-    // Initialize compositor now that PSRAM is available
-    if (compositor && compositor->initialize()) {
-        displayManager->setCompositor(compositor);
-        LOG_INFO("LayoutManager", "Compositor initialized and integrated with DisplayManager");
-    } else {
-        LOG_WARN("LayoutManager", "Compositor initialization failed, falling back to direct rendering");
-    }
+    // Compositor disabled — widget renderToCompositor() methods only draw placeholder
+    // rectangles, not actual text. The compositor lacks a font rasterizer, so widgets
+    // can't render readable content to it. Direct rendering uses display.print() which
+    // renders real text via the Inkplate/Adafruit GFX library.
+    // TODO: Add text rendering to compositor surface to enable compositor path.
+    LOG_INFO("LayoutManager", "Using direct rendering (compositor text rendering not implemented)");
 
     // Initialize widgets in all regions
     for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
