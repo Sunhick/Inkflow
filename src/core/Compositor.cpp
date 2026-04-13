@@ -367,7 +367,7 @@ bool Compositor::hasChangedRegions() const {
     return hasChanges;
 }
 
-std::vector<LayoutRegion> Compositor::getChangedRegions() const {
+PsramVector<LayoutRegion> Compositor::getChangedRegions() const {
     return changedAreas;
 }
 
@@ -436,11 +436,11 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display) {
     }
 
     // Get changed regions and optimize them
-    std::vector<LayoutRegion> regions = getChangedRegions();
+    PsramVector<LayoutRegion> regions = getChangedRegions();
     return partialDisplayToInkplate(display, regions);
 }
 
-bool Compositor::partialDisplayToInkplate(Inkplate& display, const std::vector<LayoutRegion>& specificRegions) {
+bool Compositor::partialDisplayToInkplate(Inkplate& display, const PsramVector<LayoutRegion>& specificRegions) {
     if (!virtualSurface) {
         setError(CompositorError::SurfaceNotInitialized);
         logError("partialDisplayToInkplate", lastError);
@@ -457,7 +457,7 @@ bool Compositor::partialDisplayToInkplate(Inkplate& display, const std::vector<L
         LOG_DEBUG("Compositor", "Performing optimized partial display update...");
 
         // Optimize regions for efficient partial updates
-        std::vector<LayoutRegion> optimizedRegions = coalesceRegions(specificRegions);
+        PsramVector<LayoutRegion> optimizedRegions = coalesceRegions(specificRegions);
 
         // Check if we should use partial update or fall back to full update
         if (!shouldUsePartialUpdate(optimizedRegions)) {
@@ -737,10 +737,10 @@ bool Compositor::shouldMergeRegions(const LayoutRegion& a, const LayoutRegion& b
     return efficiency >= regionMergeEfficiencyThreshold;
 }
 
-std::vector<LayoutRegion> Compositor::coalesceRegions(const std::vector<LayoutRegion>& regions) const {
+PsramVector<LayoutRegion> Compositor::coalesceRegions(const PsramVector<LayoutRegion>& regions) const {
     if (regions.size() <= 1) return regions;
 
-    std::vector<LayoutRegion> result = regions;
+    PsramVector<LayoutRegion> result = regions;
 
     // Iteratively merge regions that should be combined
     bool merged = true;
@@ -761,7 +761,7 @@ std::vector<LayoutRegion> Compositor::coalesceRegions(const std::vector<LayoutRe
     }
 
     // Filter out regions that are too small for partial update
-    std::vector<LayoutRegion> filteredResult;
+    PsramVector<LayoutRegion> filteredResult;
     for (const auto& region : result) {
         size_t regionSize = static_cast<size_t>(region.getWidth()) * region.getHeight();
         if (regionSize >= minRegionSizeForPartialUpdate) {
@@ -801,7 +801,7 @@ void Compositor::updateRegionHistory(const LayoutRegion& region, unsigned long u
     }
 }
 
-bool Compositor::shouldUsePartialUpdate(const std::vector<LayoutRegion>& regions) const {
+bool Compositor::shouldUsePartialUpdate(const PsramVector<LayoutRegion>& regions) const {
     if (regions.empty()) return false;
 
     // Calculate total area to be updated

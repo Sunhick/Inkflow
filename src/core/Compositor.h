@@ -7,8 +7,32 @@
 #include "../../test/mocks/MockInkplate.h"
 #else
 #include <Inkplate.h>
+#include <esp_heap_caps.h>
 #endif
 #include "LayoutRegion.h"
+
+// Custom allocator that uses PSRAM for vector storage.
+// Avoids internal heap malloc/free which triggers heap poisoning asserts
+// due to corrupted canary values from the Inkplate library.
+#ifndef UNIT_TEST
+template<typename T>
+struct PsramAllocator {
+    using value_type = T;
+    PsramAllocator() = default;
+    template<typename U> PsramAllocator(const PsramAllocator<U>&) {}
+    T* allocate(size_t n) {
+        T* p = static_cast<T*>(heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM));
+        if (!p) throw std::bad_alloc();
+        return p;
+    }
+    void deallocate(T* p, size_t) { heap_caps_free(p); }
+    bool operator==(const PsramAllocator&) const { return true; }
+    bool operator!=(const PsramAllocator&) const { return false; }
+};
+template<typename T> using PsramVector = std::vector<T, PsramAllocator<T>>;
+#else
+template<typename T> using PsramVector = std::vector<T>;
+#endif
 
 /**
  * Error codes for Compositor operations
@@ -37,7 +61,7 @@ private:
     size_t surfaceSize;
 
     // Change tracking — region-level only (no per-pixel dirty array)
-    std::vector<LayoutRegion> changedAreas;
+    PsramVector<LayoutRegion> changedAreas;
     bool hasChanges;
 
     // Partial update optimization
@@ -57,7 +81,7 @@ private:
         unsigned int updateFrequency;
         unsigned long totalUpdateTime;
     };
-    std::vector<RegionUpdateHistory> regionHistory;
+    PsramVector<RegionUpdateHistory> regionHistory;
 
     // Optimization parameters
     size_t maxRegionMergeDistance;
@@ -79,9 +103,9 @@ private:
     // Partial update optimization methods
     void optimizeRegionsForPartialUpdate();
     bool shouldMergeRegions(const LayoutRegion& a, const LayoutRegion& b) const;
-    std::vector<LayoutRegion> coalesceRegions(const std::vector<LayoutRegion>& regions) const;
+    PsramVector<LayoutRegion> coalesceRegions(const PsramVector<LayoutRegion>& regions) const;
     void updateRegionHistory(const LayoutRegion& region, unsigned long updateTime);
-    bool shouldUsePartialUpdate(const std::vector<LayoutRegion>& regions) const;
+    bool shouldUsePartialUpdate(const PsramVector<LayoutRegion>& regions) const;
     void updatePerformanceMetrics(unsigned long updateTime, size_t pixelsUpdated);
     float calculateRegionMergeEfficiency(const LayoutRegion& merged, const LayoutRegion& a, const LayoutRegion& b) const;
 
@@ -124,12 +148,12 @@ public:
     bool markRegionChanged(const LayoutRegion& region);
     void resetChangeTracking();
     bool hasChangedRegions() const;
-    std::vector<LayoutRegion> getChangedRegions() const;
+    PsramVector<LayoutRegion> getChangedRegions() const;
 
     // Display output (with error handling)
     bool displayToInkplate(Inkplate& display);
     bool partialDisplayToInkplate(Inkplate& display);
-    bool partialDisplayToInkplate(Inkplate& display, const std::vector<LayoutRegion>& specificRegions);
+    bool partialDisplayToInkplate(Inkplate& display, const PsramVector<LayoutRegion>& specificRegions);
 
     // Status and diagnostics
     bool isInitialized() const { return virtualSurface != nullptr; }
