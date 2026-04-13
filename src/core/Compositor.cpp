@@ -9,7 +9,6 @@
 
 Compositor::Compositor(int width, int height)
     : virtualSurface(nullptr)
-    , dirtyRegions(nullptr)
     , surfaceWidth(width)
     , surfaceHeight(height)
     , bytesPerPixel(1)  // 8-bit grayscale
@@ -77,30 +76,24 @@ bool Compositor::initialize() {
         return false;
     }
 
-    // Single combined PSRAM allocation for both buffers.
-    size_t dirtySize = static_cast<size_t>(surfaceWidth) * surfaceHeight * sizeof(bool);
-    size_t totalSize = surfaceSize + dirtySize;
-
-    LOG_INFO("Compositor", "Allocating %zu bytes in PSRAM (surface: %zu + dirty: %zu)",
-             totalSize, surfaceSize, dirtySize);
+    // Allocate only the virtual surface in PSRAM.
+    // Dirty region tracking uses the changedAreas vector (region-level, not per-pixel)
+    // which saves ~990KB of PSRAM.
+    LOG_INFO("Compositor", "Allocating %zu bytes in PSRAM for virtual surface", surfaceSize);
 
 #ifndef UNIT_TEST
-    uint8_t* combined = (uint8_t*)heap_caps_malloc(totalSize, MALLOC_CAP_SPIRAM);
+    virtualSurface = (uint8_t*)heap_caps_malloc(surfaceSize, MALLOC_CAP_SPIRAM);
 #else
-    uint8_t* combined = new(std::nothrow) uint8_t[totalSize];
+    virtualSurface = new(std::nothrow) uint8_t[surfaceSize];
 #endif
-    if (!combined) {
-        LOG_ERROR("Compositor", "Failed to allocate %zu bytes in PSRAM", totalSize);
+    if (!virtualSurface) {
+        LOG_ERROR("Compositor", "Failed to allocate %zu bytes in PSRAM", surfaceSize);
         setError(CompositorError::MemoryAllocationFailed);
         logError("initialize", lastError);
         return false;
     }
 
-    // Carve up the single allocation
-    virtualSurface = combined;
-    dirtyRegions = (bool*)(combined + surfaceSize);
-
-    LOG_INFO("Compositor", "PSRAM allocation successful at %p", (void*)combined);
+    LOG_INFO("Compositor", "PSRAM allocation successful at %p", (void*)virtualSurface);
 
     // Initialize buffers
     clear();
@@ -133,7 +126,6 @@ bool Compositor::initializeWithRetry(int maxAttempts) {
 }
 
 void Compositor::cleanup() {
-    // Both buffers are from a single combined allocation — only free once
     if (virtualSurface) {
 #ifndef UNIT_TEST
         heap_caps_free(virtualSurface);
@@ -141,7 +133,6 @@ void Compositor::cleanup() {
         delete[] virtualSurface;
 #endif
         virtualSurface = nullptr;
-        dirtyRegions = nullptr; // Points into the same allocation
     }
 
     changedAreas.clear();
@@ -231,12 +222,7 @@ bool Compositor::setPixel(int x, int y, uint8_t color) {
 
     size_t index = getPixelIndex(x, y);
     virtualSurface[index] = color;
-
-    // Mark pixel as dirty
-    if (dirtyRegions) {
-        dirtyRegions[index] = true;
-        hasChanges = true;
-    }
+    hasChanges = true;
 
     return true;
 }
@@ -343,23 +329,6 @@ bool Compositor::markRegionChanged(const LayoutRegion& region) {
         changedAreas.push_back(clampedRegion);
         hasChanges = true;
 
-        // Mark dirty regions if tracking is enabled
-        if (dirtyRegions) {
-            int startX = clampedRegion.getX();
-            int startY = clampedRegion.getY();
-            int endX = clampedRegion.getX() + clampedRegion.getWidth();
-            int endY = clampedRegion.getY() + clampedRegion.getHeight();
-
-            for (int y = startY; y < endY; y++) {
-                for (int x = startX; x < endX; x++) {
-                    size_t index = getPixelIndex(x, y);
-                    if (index < static_cast<size_t>(surfaceWidth * surfaceHeight)) {
-                        dirtyRegions[index] = true;
-                    }
-                }
-            }
-        }
-
         // Optimize regions for partial updates
         optimizeRegionsForPartialUpdate();
         return true;
@@ -373,10 +342,6 @@ bool Compositor::markRegionChanged(const LayoutRegion& region) {
 void Compositor::resetChangeTracking() {
     changedAreas.clear();
     hasChanges = false;
-
-    if (dirtyRegions) {
-        std::memset(dirtyRegions, false, surfaceWidth * surfaceHeight * sizeof(bool));
-    }
 }
 
 bool Compositor::hasChangedRegions() const {
@@ -553,10 +518,6 @@ size_t Compositor::getMemoryUsage() const {
         usage += surfaceSize;
     }
 
-    if (dirtyRegions) {
-        usage += surfaceWidth * surfaceHeight * sizeof(bool);
-    }
-
     usage += changedAreas.capacity() * sizeof(LayoutRegion);
 
     return usage;
@@ -660,13 +621,13 @@ LayoutRegion Compositor::clampRegionToBounds(const LayoutRegion& region) const {
 
 bool Compositor::checkMemoryPressure() const {
 #ifndef UNIT_TEST
-    // Check actual free PSRAM — Inkplate boards have 4-8MB
-    size_t requiredMemory = surfaceSize + (surfaceWidth * surfaceHeight * sizeof(bool));
+    // Check actual free PSRAM — only need surface buffer now (no dirty array)
+    size_t requiredMemory = surfaceSize;
     size_t freePsram = ESP.getFreePsram();
     LOG_INFO("Compositor", "Memory check: need %zu bytes, free PSRAM: %zu bytes", requiredMemory, freePsram);
     return freePsram < requiredMemory;
 #else
-    size_t requiredMemory = surfaceSize + (surfaceWidth * surfaceHeight * sizeof(bool));
+    size_t requiredMemory = surfaceSize;
     return requiredMemory > memoryPressureThreshold;
 #endif
 }

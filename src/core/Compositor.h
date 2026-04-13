@@ -31,13 +31,12 @@ enum class CompositorError {
 class Compositor {
 private:
     uint8_t* virtualSurface;
-    bool* dirtyRegions;
     int surfaceWidth;
     int surfaceHeight;
     int bytesPerPixel;
     size_t surfaceSize;
 
-    // Change tracking
+    // Change tracking — region-level only (no per-pixel dirty array)
     std::vector<LayoutRegion> changedAreas;
     bool hasChanges;
 
