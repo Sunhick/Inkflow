@@ -72,13 +72,8 @@ void LayoutManager::begin() {
     // Enable debug mode if configured
     displayManager->enableDebugMode(debugModeEnabled);
 
-    // Initialize and integrate compositor with display manager
-    if (compositor && compositor->initialize()) {
-        displayManager->setCompositor(compositor);
-        LOG_INFO("LayoutManager", "Compositor initialized and integrated with DisplayManager");
-    } else {
-        LOG_WARN("LayoutManager", "Compositor initialization failed, falling back to direct rendering");
-    }
+    // Compositor initialization deferred to initializeComponents() —
+    // PSRAM isn't available until display.begin() is called
 
     // Create WiFi manager with config values
     wifiManager = new WiFiManager(config.wifiSSID.c_str(), config.wifiPassword.c_str());
@@ -328,6 +323,14 @@ void LayoutManager::initializeComponents() {
 
     const AppConfig& initConfig = configManager->getConfig();
     displayManager->initialize(initConfig.displayMode);
+
+    // Now that display.begin() has run and PSRAM is available, init compositor
+    if (compositor && compositor->initialize()) {
+        displayManager->setCompositor(compositor);
+        LOG_INFO("LayoutManager", "Compositor initialized and integrated with DisplayManager");
+    } else {
+        LOG_WARN("LayoutManager", "Compositor initialization failed, falling back to direct rendering");
+    }
 
     // Initialize widgets in all regions
     for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
