@@ -63,8 +63,12 @@ bool Compositor::initialize() {
         return false;
     }
 
-    // Clean up any existing allocation
-    cleanup();
+    // Skip cleanup on first init — pointers are nullptr from constructor.
+    // Calling cleanup() triggers heap integrity checks that fail due to
+    // Inkplate library's PSRAM usage corrupting internal heap metadata.
+    if (virtualSurface != nullptr) {
+        cleanup();
+    }
 
     // Check memory pressure before allocation
     if (checkMemoryPressure()) {
@@ -73,45 +77,36 @@ bool Compositor::initialize() {
         return false;
     }
 
-    // Allocate virtual surface buffer in PSRAM (~1MB is too large for internal SRAM)
-#ifndef UNIT_TEST
-    virtualSurface = (uint8_t*)heap_caps_malloc(surfaceSize, MALLOC_CAP_SPIRAM);
-#else
-    virtualSurface = new(std::nothrow) uint8_t[surfaceSize];
-#endif
-    if (!virtualSurface) {
-        LOG_ERROR("Compositor", "Failed to allocate %zu bytes for virtual surface", surfaceSize);
-        setError(CompositorError::MemoryAllocationFailed);
-        logError("initialize", lastError);
-        return false;
-    }
-    LOG_INFO("Compositor", "Virtual surface allocated: %zu bytes in PSRAM", surfaceSize);
+    // Single combined PSRAM allocation for both buffers.
+    size_t dirtySize = static_cast<size_t>(surfaceWidth) * surfaceHeight * sizeof(bool);
+    size_t totalSize = surfaceSize + dirtySize;
 
-    // Allocate dirty regions tracking in PSRAM
-    size_t dirtySize = static_cast<size_t>(surfaceWidth) * surfaceHeight;
+    LOG_INFO("Compositor", "Allocating %zu bytes in PSRAM (surface: %zu + dirty: %zu)",
+             totalSize, surfaceSize, dirtySize);
+
 #ifndef UNIT_TEST
-    dirtyRegions = (bool*)heap_caps_malloc(dirtySize * sizeof(bool), MALLOC_CAP_SPIRAM);
+    uint8_t* combined = (uint8_t*)heap_caps_malloc(totalSize, MALLOC_CAP_SPIRAM);
 #else
-    dirtyRegions = new(std::nothrow) bool[dirtySize];
+    uint8_t* combined = new(std::nothrow) uint8_t[totalSize];
 #endif
-    if (!dirtyRegions) {
-#ifndef UNIT_TEST
-        heap_caps_free(virtualSurface);
-#else
-        delete[] virtualSurface;
-#endif
-        virtualSurface = nullptr;
+    if (!combined) {
+        LOG_ERROR("Compositor", "Failed to allocate %zu bytes in PSRAM", totalSize);
         setError(CompositorError::MemoryAllocationFailed);
         logError("initialize", lastError);
         return false;
     }
+
+    // Carve up the single allocation
+    virtualSurface = combined;
+    dirtyRegions = (bool*)(combined + surfaceSize);
+
+    LOG_INFO("Compositor", "PSRAM allocation successful at %p", (void*)combined);
 
     // Initialize buffers
     clear();
     resetChangeTracking();
 
-    LOG_INFO("Compositor", "Successfully initialized %dx%d surface (%zu bytes)",
-             surfaceWidth, surfaceHeight, surfaceSize);
+    LOG_INFO("Compositor", "Successfully initialized %dx%d surface", surfaceWidth, surfaceHeight);
     return true;
 }
 
@@ -138,6 +133,7 @@ bool Compositor::initializeWithRetry(int maxAttempts) {
 }
 
 void Compositor::cleanup() {
+    // Both buffers are from a single combined allocation — only free once
     if (virtualSurface) {
 #ifndef UNIT_TEST
         heap_caps_free(virtualSurface);
@@ -145,15 +141,7 @@ void Compositor::cleanup() {
         delete[] virtualSurface;
 #endif
         virtualSurface = nullptr;
-    }
-
-    if (dirtyRegions) {
-#ifndef UNIT_TEST
-        heap_caps_free(dirtyRegions);
-#else
-        delete[] dirtyRegions;
-#endif
-        dirtyRegions = nullptr;
+        dirtyRegions = nullptr; // Points into the same allocation
     }
 
     changedAreas.clear();

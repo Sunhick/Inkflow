@@ -329,7 +329,7 @@ void LayoutManager::initializeComponents() {
              ESP.getPsramSize(), ESP.getFreePsram());
     LOG_INFO("LayoutManager", "Internal heap — Free: %zu bytes", ESP.getFreeHeap());
 
-    // Now that display.begin() has run and PSRAM is available, init compositor
+    // Initialize compositor now that PSRAM is available
     if (compositor && compositor->initialize()) {
         displayManager->setCompositor(compositor);
         LOG_INFO("LayoutManager", "Compositor initialized and integrated with DisplayManager");
