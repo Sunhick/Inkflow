@@ -669,10 +669,16 @@ LayoutRegion Compositor::clampRegionToBounds(const LayoutRegion& region) const {
 }
 
 bool Compositor::checkMemoryPressure() const {
-    // Simple memory pressure check - in a real implementation,
-    // you might check available heap memory
+#ifndef UNIT_TEST
+    // Check actual free PSRAM — Inkplate boards have 4-8MB
+    size_t requiredMemory = surfaceSize + (surfaceWidth * surfaceHeight * sizeof(bool));
+    size_t freePsram = ESP.getFreePsram();
+    LOG_INFO("Compositor", "Memory check: need %zu bytes, free PSRAM: %zu bytes", requiredMemory, freePsram);
+    return freePsram < requiredMemory;
+#else
     size_t requiredMemory = surfaceSize + (surfaceWidth * surfaceHeight * sizeof(bool));
     return requiredMemory > memoryPressureThreshold;
+#endif
 }
 
 bool Compositor::isValidRegion(const LayoutRegion& region) const {
