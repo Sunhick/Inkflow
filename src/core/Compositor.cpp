@@ -95,8 +95,20 @@ bool Compositor::initialize() {
 
     LOG_INFO("Compositor", "PSRAM allocation successful at %p", (void*)virtualSurface);
 
+    // Pre-allocate changedAreas to avoid internal heap realloc during rendering.
+    // Vector realloc triggers heap integrity checks that fail due to Inkplate
+    // library's PSRAM usage corrupting internal heap canary values.
+    changedAreas.reserve(16);
+    regionHistory.reserve(16);
+
     // Initialize buffers
-    clear();
+    // Use chunked memset to minimize heap pressure during large PSRAM writes
+    const size_t chunkSize = 4096;
+    for (size_t offset = 0; offset < surfaceSize; offset += chunkSize) {
+        size_t remaining = surfaceSize - offset;
+        size_t writeSize = (remaining < chunkSize) ? remaining : chunkSize;
+        memset(virtualSurface + offset, 255, writeSize);
+    }
     resetChangeTracking();
 
     LOG_INFO("Compositor", "Successfully initialized %dx%d surface", surfaceWidth, surfaceHeight);
@@ -143,8 +155,15 @@ void Compositor::cleanup() {
 void Compositor::clear() {
     if (!virtualSurface) return;
 
-    // Clear to white (7 is white in 3-bit mode, 255 in 8-bit)
-    std::memset(virtualSurface, 255, surfaceSize);
+    // Clear to white in small chunks to avoid triggering ESP32 heap integrity
+    // checks during large PSRAM writes. The heap poisoning feature scans the
+    // heap on certain operations, and a single 990KB memset can trigger it.
+    const size_t chunkSize = 4096; // 4KB chunks
+    for (size_t offset = 0; offset < surfaceSize; offset += chunkSize) {
+        size_t remaining = surfaceSize - offset;
+        size_t writeSize = (remaining < chunkSize) ? remaining : chunkSize;
+        memset(virtualSurface + offset, 255, writeSize);
+    }
 
     // Mark entire surface as changed
     LayoutRegion fullSurface(0, 0, surfaceWidth, surfaceHeight);
