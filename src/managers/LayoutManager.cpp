@@ -582,30 +582,19 @@ void LayoutManager::renderAllRegions() {
     if (compositor && compositor->isInitialized() && displayManager->getCompositor() && !compositor->isInFallbackMode()) {
         LOG_DEBUG("LayoutManager", "Using compositor for rendering all regions");
 
-        // Clear compositor surface
-        compositor->clear();
-
         bool compositorRenderingSuccessful = true;
 
-        // Render each region to compositor with error handling
+        // Clear the display buffer before rendering
+        display.clearDisplay();
+
+        // Render each region via DisplayList
         for (auto it = regionsBegin(); it != regionsEnd(); ++it) {
             LayoutRegion* region = it->get();
             if (region) {
-                LOG_DEBUG("LayoutManager", "Rendering region at (%d,%d) %dx%d with %d widgets to compositor",
+                LOG_DEBUG("LayoutManager", "Rendering region at (%d,%d) %dx%d with %d widgets",
                           region->getX(), region->getY(),
                           region->getWidth(), region->getHeight(),
                           region->getWidgetCount());
-
-                // Clear region on compositor with error checking
-                LOG_DEBUG("LayoutManager", "Clearing region (%d,%d) %dx%d on compositor",
-                          region->getX(), region->getY(),
-                          region->getWidth(), region->getHeight());
-                if (!compositor->clearRegion(*region)) {
-                    LOG_ERROR("LayoutManager", "Failed to clear region on compositor, error: %s",
-                              compositor->getErrorString(compositor->getLastError()));
-                    compositorRenderingSuccessful = false;
-                    continue;
-                }
 
                 // Render all widgets via DisplayList — records commands then replays to display
                 for (size_t i = 0; i < region->getWidgetCount(); ++i) {
@@ -652,24 +641,13 @@ void LayoutManager::renderAllRegions() {
             }
         }
 
-        // Display compositor content to Inkplate with error handling
+        // DisplayList already replayed all draw commands to the display buffer.
+        // Just trigger the e-ink refresh — no compositor surface copy needed.
         if (compositorRenderingSuccessful) {
-            if (!displayManager->renderWithCompositor()) {
-                LOG_WARN("LayoutManager", "Compositor display failed, falling back to direct rendering");
-                compositor->setFallbackMode(true);
-                renderAllRegions(); // Retry with direct rendering
-                return;
-            }
+            displayManager->update();
         } else {
-            LOG_WARN("LayoutManager", "Compositor rendering had errors, attempting recovery");
-            if (compositor->recoverFromError()) {
-                LOG_INFO("LayoutManager", "Compositor recovery successful");
-            } else {
-                LOG_ERROR("LayoutManager", "Compositor recovery failed, enabling fallback mode");
-                compositor->setFallbackMode(true);
-                renderAllRegions(); // Retry with direct rendering
-                return;
-            }
+            LOG_WARN("LayoutManager", "Some widgets had rendering errors");
+            displayManager->update(); // Still refresh with whatever rendered
         }
     } else {
         if (compositor && compositor->isInFallbackMode()) {
