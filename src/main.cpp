@@ -17,6 +17,9 @@ void setup() {
     // Initialize logger — ERROR only in production to save power (UART draws current)
     Logger::setLogLevel(LogLevel::ERROR);
 
+    // Always print build info for diagnostics (bypasses log level)
+    Serial.printf("[BUILD] Commit: %s | Built: %s\n", BUILD_GIT_SHA, BUILD_TIMESTAMP);
+
     LOG_INFO("Main", "=== INKPLATE IMAGE DISPLAY STARTING ===");
 
     // Disable Bluetooth immediately — not used, saves ~50mA
